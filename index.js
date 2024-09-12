@@ -202,44 +202,6 @@ function handleSessionDecoding() {
       }
     });
     
-    // client.ev.on('messages.upsert', async chatUpdate => {
-    //   const mek = chatUpdate.messages[0];
-    //   if (!mek.message || mek.message.viewOnceMessageV2) return;
-
-    //   // Handle ephemeral message
-
-    //   mek.message = (Object.keys(mek.message)[0] === 'ephemeralMessage') ? mek.message.ephemeralMessage.message : mek.message;
-
-    //   // auto-read status
-
-    //   if (mek.key && mek.key.remoteJid === 'status@broadcast' && config.auto_read_status === 'true') {
-    //     await client.readMessages([mek.key]);
-    //   }
-
-    //   const botNumber = await client.decodeJid(client.user.id);
-
-    //   //for  status saver
-
-
-    //   if (mek.key && mek.key.remoteJid === 'status@broadcast' && config.auto_status_saver === 'true') {
-    //     if (mek.message.extendedTextMessage) {
-    //       let cap = mek.message.extendedTextMessage.text;
-    //       await client.sendMessage(botNumber, { text: cap }, { quoted: mek });
-    //     } else if (mek.message.imageMessage) {
-    //       let cap = mek.message.imageMessage.caption;
-    //       let anu = await client.downloadAndSaveMediaMessage(mek.message.imageMessage);
-    //       await client.sendMessage(botNumber, { image: { url: anu }, caption: cap }, { quoted: mek });
-    //     } else if (mek.message.videoMessage) {
-    //       let cap = mek.message.videoMessage.caption;
-    //       let anu = await client.downloadAndSaveMediaMessage(mek.message.videoMessage);
-    //       await client.sendMessage(botNumber, { video: { url: anu }, caption: cap }, { quoted: mek });
-    //     }
-    //   }
-
-    //   const message = new Message(client, mek);
-    // });
-
-
     client.ev.on('messages.upsert', async (upsert) => {
       if (upsert.type !== 'notify') return;
       for (const msg of upsert.messages) {
