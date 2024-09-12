@@ -79,39 +79,6 @@ Index({
     await message.reply(`*🎱 Magic 8-Ball says:*\n\n${randomResponse}`);
 });
 
-// const Jimp = require('jimp');
-// const ColorThief = require('color-thief-jimp');
-
-// Index({
-//     pattern: 'palette',
-//     fromMe: mode,
-//     desc: 'Extracts color palette from an image.',
-//     type: 'advanced tools'
-// }, async (message, match, client) => {
-//     const image = await message.getImage();
-
-//     if (!image) {
-//         return await message.reply('Please provide an image. Usage: .palette [attach an image]');
-//     }
-
-//     try {
-//         const img = await Jimp.read(image);
-//         const colorThief = new ColorThief();
-//         const palette = await colorThief.getPalette(img, 5);
-
-//         let response = '*🎨 Image Color Palette:*\n\n';
-//         palette.forEach((color, index) => {
-//             const hex = Jimp.rgbaToInt(color[0], color[1], color[2], 255).toString(16).padStart(6, '0');
-//             response += `Color ${index + 1}: #${hex}\n`;
-//         });
-
-//         await message.reply(response);
-//     } catch (error) {
-//         await message.reply('Error extracting color palette. Please try again.');
-//     }
-// });
-
-
 
 Index({
     pattern: 'calc',
