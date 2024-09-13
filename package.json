@@ -1,6 +1,6 @@
 {
   "name": "Axiom-md",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -13,7 +13,7 @@
   "dependencies": {
     "@distube/ytdl-core": "^4.13.5",
     "@vitalets/google-translate-api": "^9.2.0",
-    "@whiskeysockets/baileys": "^6.7.5",
+    "@whiskeysockets/baileys": : "github:Diegoson/WaBot.js",
     "axios": "^1.7.2",
     "cheerio": "^1.0.0-rc.12",
     "color-thief-jimp": "^2.0.2",
