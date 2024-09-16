@@ -41,6 +41,6 @@
     "tesseract.js": "^5.1.0",
     "wa-sticker-formatter": "^4.4.4",
     "youtube-search-api": "^1.2.2",
-     "ytdl-core": "^4.11.5",
+    "ytdl-core": "^4.11.5",
   }
 }
