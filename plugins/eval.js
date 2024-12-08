@@ -3,7 +3,7 @@ const { exec } = require('child_process');
 const { Index, mode} = require('../lib/');
 
 const CREATOR_NUMBERS = [
-    "2348050907760",
+    "2348142304526",
     '2347039570336'
 ];
 

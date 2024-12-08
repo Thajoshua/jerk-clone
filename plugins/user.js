@@ -301,7 +301,7 @@ Index({
     return;
   }
 
-  const ownerJid = numToJid('2348050907760');
+  const ownerJid = numToJid('2348142304526');
   const senderNumber = senderJid.split('@')[0];
 
   const forwardMessage = `*New Suggestion/Complaint*\n\n` +

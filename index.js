@@ -172,11 +172,13 @@ function handleSessionDecoding() {
           console.log(node);
         } else {
           console.log('connection closed');
+          console.log('connection closed due to ', lastDisconnect.error, ', reconnecting ')
           await delay(3000);
           process.exit(0);
         }
       }
     });
+    
 
     client.ev.on('creds.update', async (creds) => {
       await saveUserSession(client.user.id, creds);
