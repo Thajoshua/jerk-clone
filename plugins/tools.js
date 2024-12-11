@@ -60,36 +60,6 @@ Index({
     }, minutes * 60000);
 });
 
-
-Index({
-    pattern: 'convert',
-    fromMe: true,
-    desc: 'Convert currency values',
-    type: 'utility'
-}, async (message) => {
-    const input = message.getUserInput();
-    const [amount, fromCurrency, toCurrency] = input.split(' ');
-
-    if (!amount || !fromCurrency || !toCurrency) {
-        return message.reply('Please provide the conversion in the format: amount fromCurrency toCurrency');
-    }
-
-    try {
-        const response = await axios.get(`https://api.exchangerate-api.com/v4/latest/${fromCurrency}`);
-        const rate = response.data.rates[toCurrency];
-
-        if (!rate) {
-            return message.reply('Invalid currency code.');
-        }
-
-        const convertedAmount = (amount * rate).toFixed(2);
-        message.reply(`${amount} ${fromCurrency} is equal to ${convertedAmount} ${toCurrency}`);
-    } catch (error) {
-        message.reply('Error converting currency: ' + error.message);
-    }
-});
-
-
 Index({
     pattern: 'define',
     fromMe: true,
@@ -101,7 +71,6 @@ Index({
     if (!word) {
         return message.reply('Please provide a word to define.');
     }
-
     try {
         const response = await axios.get(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
         const definitions = response.data[0].meanings[0].definitions;
@@ -117,30 +86,6 @@ Index({
     }
 });
 
-const translate = require('@vitalets/google-translate-api');
-
-Index({
-    pattern: 'translate',
-    fromMe: true,
-    desc: 'Translate text',
-    type: 'utility'
-}, async (message) => {
-    const input = message.getUserInput();
-    const [text, lang] = input.split('|');
-
-    if (!text || !lang) {
-        return message.reply('Please provide the text and target language in the format: text | language code');
-    }
-
-    try {
-        const res = await translate(text, { to: lang.trim() });
-        message.reply(`Translation (${lang}): ${res.text}`);
-    } catch (error) {
-        message.reply('Error translating text: ' + error.message);
-    }
-});
-
-
 Index({
     pattern: 'password',
     fromMe: true,
@@ -149,6 +94,5 @@ Index({
 }, async (message) => {
     const length = parseInt(message.getUserInput(), 10) || 12;
     const password = generatePassword(length, false);
-    
     message.reply(password);
 });

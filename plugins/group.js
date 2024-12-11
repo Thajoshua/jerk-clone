@@ -1,37 +1,14 @@
-
 const { Index, mode } = require('../lib/');
 const axios = require('axios');
 const { isAdmin } = require('../lib/utils');
 const schedule = require('node-schedule');
 const moment = require('moment-timezone');
 const fetch = require('node-fetch');
+const fs = require('fs');
+const { WelcomeSetting } = require('../database');
+const config = require('../config');
 
-
-
-Index({
-    pattern: 'dlt',
-    fromMe: mode,
-    desc: 'Delete a message',
-    type: 'group'
-}, async (message) => {
-    try {
-        if (!message.quoted) {
-            await message.reply('Please reply to a message you want to delete.');
-            return;
-        }
-        if (message.isGroup) {
-            await message.client.sendMessage(message.jid, { delete: message.quoted.key });
-            await message.reply('Message deleted successfully.');
-        } else {
-            await message.reply('Message deletion is only supported in group chats.');
-        }
-    } catch (error) {
-        console.error('Error deleting message:', error);
-        await message.reply('Failed to delete message. Error: ' + error.message);
-    }
-});
-
-
+const welcomeDB = new Map();
 const userWarnings = new Map();
 
 Index({
@@ -88,10 +65,6 @@ async function handleAntispam(message) {
         }
     }
 }
-module.exports = {
-    handleAntispam,
-};
-
 
 Index({
     pattern: 'add ?(.*)',
@@ -149,12 +122,26 @@ Index({
     type: 'group'
 }, async (message) => {
     if (!message.isGroup) return await message.reply('This command can only be used in a group.');
-    if (!await isAdmin(message, message.client.user.id)) return await message.reply('I need to be an admin to promote members.');
-    if (!message.quoted) return await message.reply('Please reply to the message of the user you want to promote.');
     try {
-        await message.client.groupParticipantsUpdate(message.jid, [message.reply_message.sender], 'promote');
+        const groupMetadata = await message.client.groupMetadata(message.jid);
+        const botId = message.client.user.id.split(':')[0];
+        const participants = groupMetadata.participants || [];
+        const botIsAdmin = participants.some(p => 
+            (p.id.split('@')[0] === botId.split('@')[0]) && 
+            (p.admin === 'admin' || p.admin === 'superadmin')
+        );
+        if (!botIsAdmin) {
+            return await message.reply('I need to be an admin to promote members.');
+        }
+        if (!message.quoted) return await message.reply('Please reply to the message of the user you want to promote.');
+        await message.client.groupParticipantsUpdate(
+            message.jid, 
+            [message.quoted.participant || message.quoted.sender], 
+            'promote'
+        );
         await message.reply('User promoted to admin successfully.');
     } catch (error) {
+        console.error('Error promoting user:', error);
         await message.reply('Failed to promote user. Make sure I have permission to promote members.');
     }
 });
@@ -163,19 +150,35 @@ Index({
 Index({
     pattern: 'demote',
     fromMe: true,
-    desc: 'Demote an admin to regular member',
+    desc: 'Promote a member to admin',
     type: 'group'
 }, async (message) => {
     if (!message.isGroup) return await message.reply('This command can only be used in a group.');
-    if (!await isAdmin(message, message.client.user.id)) return await message.reply('I need to be an admin to demote members.');
-    if (!message.quoted) return await message.reply('Please reply to the message of the admin you want to demote.');
     try {
-        await message.client.groupParticipantsUpdate(message.jid, [message.reply_message.sender], 'demote');
-        await message.reply('Admin demoted to regular member successfully.');
+        const groupMetadata = await message.client.groupMetadata(message.jid);
+        const botId = message.client.user.id.split(':')[0];
+        const participants = groupMetadata.participants || [];
+        const botIsAdmin = participants.some(p => 
+            (p.id.split('@')[0] === botId.split('@')[0]) && 
+            (p.admin === 'admin' || p.admin === 'superadmin')
+        );
+        if (!botIsAdmin) {
+            console.log('Bot admin status check failed');
+            return await message.reply('I need to be an admin to demote members.');
+        }
+        if (!message.quoted) return await message.reply('Please reply to the message of the user you want to demote.');
+        await message.client.groupParticipantsUpdate(
+            message.jid, 
+            [message.quoted.participant || message.quoted.sender], 
+            'demote'
+        );
+        await message.reply('User demote to member successfully.');
     } catch (error) {
-        await message.reply('Failed to demote admin. Make sure I have permission to demote members.');
+        console.error('Error demoting user:', error);
+        await message.reply('Failed to demote user. Make sure I have permission to demote members.');
     }
 });
+
 
 
 Index({
@@ -323,34 +326,68 @@ Index({
 
 
 Index({
-    pattern: 'tagall',
+    pattern: 'tagall ?(.*)',
     fromMe: true,
-    desc: 'Tags all members in the group with their names',
+    desc: 'Tag all group members',
     type: 'group'
-}, async (message) => {
-    const match = message.getUserInput()
+}, async (message, match) => {
     if (!message.isGroup) {
         return await message.reply('This command can only be used in groups.');
     }
     try {
         const groupMetadata = await message.client.groupMetadata(message.jid);
-        if (!groupMetadata || !groupMetadata.participants) {
-            return await message.reply('Unable to fetch group metadata. Please try again later.');
+        const participants = groupMetadata.participants;
+        const mentionedJid = participants.map(p => p.id);
+
+        const customMessage = match || 'Group Announcement';
+
+        let teks = `*${customMessage}*\n\n`;
+        
+        for (let i = 0; i < participants.length; i++) {
+            const member = participants[i];
+            teks += `@${member.id.split('@')[0]}\n`;
         }
-        const groupMembers = groupMetadata.participants;
-        let teks = `\n╭━━[ Attention Everyone ]━━⊷\n`;
-        teks += `┃ Message: ${match}\n┃\n`;
-        for (let member of groupMembers) {
-            teks += `┃ • @${member.id.split('@')[0]}\n`;
-        }
-        teks += `╰━━━━━━━━━━━━━━━⊷\n`;
-        await message.client.sendMessage(message.jid, { 
-            text: teks, 
-            mentions: groupMembers.map(m => m.id) 
+
+        await message.client.sendMessage(message.jid, {
+            text: teks,
+            mentions: mentionedJid
         });
+
     } catch (error) {
-        console.error('Error in tagall command:', error);
-        await message.reply('An error occurred while tagging group members. Please try again later.');
+        console.error('Error in tagall:', error);
+        await message.reply('Error tagging members: ' + error.message);
+    }
+});
+
+Index({
+    pattern: 'tag',
+    fromMe: true,
+    desc: 'Tag all members in replied message',
+    type: 'group'
+}, async (message) => {
+    if (!message.isGroup) {
+        return await message.reply('This command can only be used in groups.');
+    }
+    if (!message.quoted) {
+        return await message.reply('Please reply to a message to tag all members.');
+    }
+
+    try {
+        const groupMetadata = await message.client.groupMetadata(message.jid);
+        const participants = groupMetadata.participants;
+        const mentionedJid = participants.map(p => p.id);
+
+        const quotedContent = message.quotedText || 'Group Mention';
+
+        await message.client.sendMessage(message.jid, {
+            text: quotedContent,
+            mentions: mentionedJid,
+            quoted: message.data
+        });
+
+    } catch (error) {
+        console.error('Error in tag:', error);
+        await message.reply('Error creating tag message: ' + error.message);
     }
 });
 
@@ -393,25 +430,6 @@ Index({
     }
 });
 
-Index({
-    pattern: 'joke',
-    fromMe: true,
-    desc: 'Get a random joke',
-    type: 'fun'
-}, async (message) => {
-    try {
-        const response = await fetch('https://official-joke-api.appspot.com/random_joke');
-        if (!response.ok) throw new Error('Network response was not ok');
-        const joke = await response.json();
-
-        await message.reply(`Here's a joke for you:\n\n${joke.setup}\n\n${joke.punchline}`);
-    } catch (error) {
-        console.error(error);
-        await message.reply("Sorry, I couldn't fetch a joke at the moment. Please try again later.");
-    }
-});
-
-
 
 Index({
     pattern: 'poll',
@@ -441,42 +459,6 @@ Index({
     }
 });
 
-
-// const { antilink } = require('../config');
-
-// Index({
-//     pattern: 'antilink',
-//     fromMe: true,
-//     desc: 'Enable or disable antilink in the group',
-//     type: 'group',
-// }, async (message) => {
-//     const userInput = await message.getUserInput();
-//     if (userInput === 'on') {
-//         antilink.enabled = true;
-//         message.reply('Antilink has been enabled');
-//     } else if (userInput === 'off') {
-//         antilink.enabled = false;
-//         message.reply('Antilink has been disabled');
-//     } else if (userInput.startsWith('action')) {
-//         const action = userInput.split(' ')[1];
-//         if (['delete', 'warn', 'kick'].includes(action)) {
-//             antilink.action = action;
-//             message.reply(`Antilink action has been set to ${action}`);
-//         } else {
-//             message.reply('Invalid action. Use one of the following: delete, warn, kick');
-//         }
-//     } else if (userInput.startsWith('message')) {
-//         const customMessage = userInput.split(' ').slice(1).join(' ');
-//         antilink.message = customMessage;
-//         message.reply('Antilink message has been updated');
-//     } else {
-//         message.reply('Invalid command. Use: .antilink on/off, .antilink action [delete/warn/kick], .antilink message [custom message]');
-//     }
-// });
-
-
-
-const config = require('../config');
 
 Index({
   pattern: 'antilink',
@@ -563,6 +545,11 @@ Index({
 }, async (message) => {
   if (!config.ANTILINK.enabled || !message.isGroup) return;
 
+  const groupMetadata = await message.client.groupMetadata(message.jid);
+  const isAdmin = groupMetadata.participants.some(p => p.id === message.sender && p.admin);
+
+  if (isAdmin) return;
+
   const matches = message.text.match(urlRegex);
   if (!matches) return;
 
@@ -645,7 +632,7 @@ Index({
 
 
 Index({
-  pattern: 'creategc|creategroup',
+  pattern: 'creategc',
   fromMe: true,
   desc: 'Create a new group and send the group details',
   type: 'group'
@@ -677,47 +664,143 @@ https://chat.whatsapp.com/${inviteCode}
 });
 
 Index({
-    pattern: 'welcome ?(.*)',
+    pattern: 'welcome',
     fromMe: true,
-    desc: 'Enable or disable welcome messages',
-    type: 'group',
+    desc: 'Configure welcome messages for groups',
+    type: 'group'
 }, async (message) => {
     if (!message.isGroup) {
-        await message.reply('This command is only for groups.');
-        return;
+        return await message.reply('This command can only be used in groups.');
     }
-    const userInput = await message.getUserInput();
-    const status = userInput === 'on';
+
+    const groupMetadata = await message.client.groupMetadata(message.jid);
+    const isAdmin = groupMetadata.participants.some(p => 
+        p.id === message.sender && (p.admin === 'admin' || p.admin === 'superadmin')
+    );
+
+    if (!isAdmin) {
+        return await message.reply('This command can only be used by group admins.');
+    }
+
+    const args = message.text.split(' ');
+    const command = args[1]?.toLowerCase();
+
+    if (!command || !['on', 'off', 'set', 'check'].includes(command)) {
+        return await message.reply(`*Welcome Message Configuration*
+
+Usage:
+.welcome on - Enable welcome messages
+.welcome off - Disable welcome messages
+.welcome set <message> - Set custom welcome message
+.welcome check - Check current welcome message
+
+Variables for custom message:
+{mention} - Mentions the new member
+{group} - Group name
+{desc} - Group description
+{count} - Group member count
+
+Example:
+.welcome set Hey {mention}, welcome to {group}! You're our {count}th member. 🎉
+
+Current welcome message will be shown when someone joins.`);
+    }
+
     try {
-        await WelcomeSetting.upsert({ groupId: message.jid, isEnabled: status });
-        await message.reply(`Welcome messages have been ${status ? 'enabled' : 'disabled'}.`);
+        let welcomeSetting = await WelcomeSetting.findOne({
+            where: { groupId: message.jid }
+        });
+
+        switch (command) {
+            case 'on':
+                if (!welcomeSetting) {
+                    welcomeSetting = await WelcomeSetting.create({
+                        groupId: message.jid,
+                        isEnabled: true,
+                        welcomeMessage: 'Welcome {mention} to {group}! 👋'
+                    });
+                } else {
+                    await welcomeSetting.update({ isEnabled: true });
+                }
+                await message.reply('Welcome messages have been enabled for this group.');
+                break;
+
+            case 'off':
+                if (welcomeSetting) {
+                    await welcomeSetting.update({ isEnabled: false });
+                }
+                await message.reply('Welcome messages have been disabled for this group.');
+                break;
+
+            case 'set':
+                const newMessage = message.text.split('set ')[1];
+                if (!newMessage) {
+                    return await message.reply('Please provide a welcome message.');
+                }
+                if (!welcomeSetting) {
+                    welcomeSetting = await WelcomeSetting.create({
+                        groupId: message.jid,
+                        isEnabled: true,
+                        welcomeMessage: newMessage
+                    });
+                } else {
+                    await welcomeSetting.update({
+                        welcomeMessage: newMessage,
+                        isEnabled: true
+                    });
+                }
+                await message.reply('Welcome message has been updated and enabled.\n\nNew message:\n' + newMessage);
+                break;
+
+            case 'check':
+                if (!welcomeSetting) {
+                    return await message.reply('No welcome message is set for this group.');
+                }
+                const status = welcomeSetting.isEnabled ? 'enabled' : 'disabled';
+                const currentMessage = welcomeSetting.welcomeMessage;
+                
+                const groupName = groupMetadata.subject;
+                const memberCount = groupMetadata.participants.length;
+                const groupDesc = groupMetadata.desc || '';
+
+                let previewMessage = currentMessage
+                    .replace('{mention}', `@${message.sender.split('@')[0]}`)
+                    .replace('{group}', groupName)
+                    .replace('{desc}', groupDesc)
+                    .replace('{count}', memberCount.toString());
+
+                await message.reply(`*Welcome Message Status*\n\nStatus: ${status}\n\nCurrent message:\n${currentMessage}\n\nPreview:\n${previewMessage}`);
+                break;
+        }
     } catch (error) {
-        console.error('Error updating database:', error);
-        await message.reply('There was an error updating the database.');
+        console.error('Error in welcome command:', error);
+        await message.reply('An error occurred while managing welcome messages.');
     }
 });
+
 
 Index({
-  pattern: 'setwelcome ?(.*)',
-  fromMe: true,
-  desc: 'Set the welcome message',
-  type: 'group',
+    pattern: 'seticon',
+    fromMe: true,
+    desc: 'Change the group icon',
+    type: 'group'
 }, async (message) => {
-  if (!message.isGroup) {
-      await message.reply('This command is only for groups.');
-      return;
-  }
-  const welcomeMessage = await message.getUserInput();
-  if (!welcomeMessage) {
-      await message.reply('Please provide a welcome message.');
-      return;
-  }
-  try {
-      await WelcomeSetting.upsert({ groupId: message.jid, welcomeMessage });
-      await message.reply('Welcome message has been set.');
-  } catch (error) {
-      console.error('Error updating database:', error);
-      await message.reply('There was an error updating the database.');
-  }
+    if (!message.isGroup) return await message.reply('This command can only be used in a group.');
+    
+    if (!message.quoted || !message.quoted.message || !message.quoted.message.imageMessage) {
+        return await message.reply('Please reply to an image to set it as the group icon.');
+    }
+
+    try {
+        const media = await message.downloadMediaMessage(message.quoted);
+        await message.client.updateProfilePicture(message.jid, media);
+        await message.reply('Group icon updated successfully.');
+    } catch (error) {
+        console.error('Error setting group icon:', error);
+        await message.reply('Failed to update group icon. Make sure the image is valid and I have permission to change group settings.');
+    }
 });
 
+module.exports = {
+    handleAntispam,
+};

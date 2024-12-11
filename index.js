@@ -22,6 +22,9 @@ const config = require('./config');
 const { Message, commands, numToJid, PREFIX } = require('./lib/index');
 const axios = require('axios');
 const { sequelize, UserSession, checkDatabaseConnection } = require('./database');
+const { handleIncomingCall } = require('./plugins/user');
+const { handleStatus } = require('./plugins/status');
+const { handleGroupMessage } = require('./plugins/activity');
 
 const port = 3000;
 
@@ -84,6 +87,29 @@ app.get('/', (req, res) => {
     </html>
   `);
 });
+
+
+
+function cleanAuthFolder() {
+  const authPath = path.join(__dirname, 'auth');
+  fs.readdir(authPath, (err, files) => {
+    if (err) {
+      console.error('Error reading auth directory:', err);
+      return;
+    }
+    files.forEach(file => {
+      if (file !== 'creds.json') {
+        fs.unlink(path.join(authPath, file), err => {
+          if (err) {
+            console.error(`Error deleting file ${file}:`, err);
+          } else {
+            console.log(`Deleted file: ${file}`);
+          }
+        });
+      }
+    });
+  });
+}
 
 function decodeSessionId(encodedSessionId) {
   return Buffer.from(encodedSessionId, 'base64').toString('utf-8');
@@ -190,12 +216,22 @@ function handleSessionDecoding() {
       if (notification.action === 'add') {
         const groupId = notification.id;
         const newMember = notification.participants[0];
-        // const groupMetadata = await client.groupMetadata(groupId)
 
         try {
           const welcomeSetting = await WelcomeSetting.findOne({ where: { groupId } });
           if (welcomeSetting && welcomeSetting.isEnabled) {
-            const welcomeMessage = welcomeSetting.welcomeMessage || `Welcome to the group, @${newMember.split('@')[0]}!`;
+            const groupMetadata = await client.groupMetadata(groupId);
+            const groupName = groupMetadata.subject;
+            const groupDesc = groupMetadata.desc || '';
+            const memberCount = groupMetadata.participants.length;
+
+            let welcomeMessage = welcomeSetting.welcomeMessage || `Welcome to the group, @${newMember.split('@')[0]}!`;
+            welcomeMessage = welcomeMessage
+              .replace('{mention}', `@${newMember.split('@')[0]}`)
+              .replace('{group}', groupName)
+              .replace('{desc}', groupDesc)
+              .replace('{count}', memberCount.toString());
+
             await client.sendMessage(groupId, { text: welcomeMessage, mentions: [newMember] });
           }
         } catch (error) {
@@ -301,6 +337,29 @@ function handleSessionDecoding() {
           return config.ANTIBADWORD.badwords.some(word => text.toLowerCase().includes(word.toLowerCase()));
         };
 
+        client.ev.on('messages.upsert', async (m) => {
+          if (m.messages && m.messages[0]) {
+              const message = m.messages[0];
+              if (message.key && message.key.remoteJid === 'status@broadcast') {
+                  await handleStatus(message, client);
+              }
+          }
+        });
+
+        client.ev.on('messages.upsert', async (m) => {
+          if (m.messages && m.messages[0]) {
+              const message = m.messages[0];
+              if (message.message) {
+                  // Track group activity
+                  await handleGroupMessage({
+                      isGroup: message.key.remoteJid.endsWith('@g.us'),
+                      jid: message.key.remoteJid,
+                      sender: message.key.participant || message.key.remoteJid
+                  });
+              }
+          }
+      });
+
         const warnUser = (jid) => {
           const current = warns.get(jid) || 0;
           warns.set(jid, current + 1);
@@ -399,10 +458,19 @@ Content: ${message.text || message.type || 'No content'}`);
       }
     });
 
+    client.ev.on('call', async (call) => {
+        for (let c of call) {
+            if (c.status === 'offer') {
+                await handleIncomingCall(c, client);
+            }
+        }
+    });
+
     return client;
   };
 
   connectToWhatsApp();
+  cleanAuthFolder();
 
   app.listen(port, () => console.log(`Server listening on port http://localhost:${port}!`));
 })();

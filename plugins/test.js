@@ -1,7 +1,10 @@
 const { Index, mode } = require('../lib/');
 const figlet = require('figlet');
 const util = require('util');
+const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 const figletAsync = util.promisify(figlet);
+const { toggleAntidelete, setAntideleteDestination } = require('../index');
+const config = require('../config');
 const math = require('mathjs');
 
 
@@ -54,29 +57,6 @@ Index({
     } catch (err) {
         await message.reply('Error generating ASCII art. Please try again.');
     }
-});
-
-Index({
-    pattern: '8ball',
-    fromMe: mode,
-    desc: 'Ask the Magic 8-Ball a question.',
-    type: 'cool'
-}, async (message, match, client) => {
-    const input = message.getUserInput();
-    
-    if (!input) {
-        return await message.reply('Please ask a question. Usage: .8ball [your question]');
-    }
-
-    const responses = [
-        "It is certain.", "Without a doubt.", "You may rely on it.",
-        "Ask again later.", "Cannot predict now.", "Better not tell you now.",
-        "Don't count on it.", "My reply is no.", "My sources say no."
-        // Add more responses
-    ];
-
-    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-    await message.reply(`*🎱 Magic 8-Ball says:*\n\n${randomResponse}`);
 });
 
 
@@ -176,15 +156,14 @@ Index({
     await message.reply(mediaInfo.join('\n'));
 });
 
-const { Sticker, StickerTypes } = require('wa-sticker-formatter');
 
 
 Index({
-    pattern: 'sticker',
+    pattern: 'sticker ?(.*)',
     fromMe: true,
-    desc: 'Create a sticker from an image, video, or quoted media',
+    desc: 'Create a sticker from image/video. Use pack;author to set metadata',
     type: 'media'
-}, async (message) => {
+}, async (message, match) => {
     let mediaMessage = null;
     if (message.hasMedia && (message.mediaType === 'image' || message.mediaType === 'video')) {
         mediaMessage = message;
@@ -198,10 +177,11 @@ Index({
         return;
     }
     try {
+        const [pack, author] = (message.getUserInput() || '').split(';');
         const buffer = await message.downloadMediaMessage();
         const sticker = new Sticker(buffer, {
-            pack: config.stickerPackName,
-            author: config.stickerAuthor,
+            pack: pack || 'AXIOM',
+            author: author || 'AXIOM',
             type: StickerTypes.FULL,
             categories: ['🤖', '👍'],
             quality: 50,
@@ -215,38 +195,35 @@ Index({
     }
 });
 
-
 Index({
-    pattern: 'setgpp',
+    pattern: 'take ?(.*)',
     fromMe: true,
-    desc: 'Change group profile picture',
-    type: 'group'
-}, async (message) => {
-    if (!message.isGroup) {
-        await message.reply('This command can only be used in a group.');
+    desc: 'Change sticker metadata. Reply to a sticker with pack;author',
+    type: 'media'
+}, async (message, match) => {
+    if (!message.quoted || message.quotedType !== 'stickerMessage') {
+        await message.reply('Please reply to a sticker to change its metadata.');
         return;
     }
-
-    if (!message.hasMedia && !message.quoted) {
-        await message.reply('Please send an image or reply to an image to set it as group profile picture.');
-        return;
-    }
-
     try {
+        const [pack, author] = (message.getUserInput() || '').split(';');
         const buffer = await message.downloadMediaMessage();
-        await message.setPP(message.jid, buffer);
-        await message.reply('Group profile picture updated successfully!');
+        const sticker = new Sticker(buffer, {
+            pack: pack || 'AXIOM',
+            author: author || 'AXIOM',
+            type: StickerTypes.FULL,
+            categories: ['🤖', '👍'],
+            quality: 50,
+            background: 'transparent'
+        });
+        const stickerBuffer = await sticker.toBuffer();
+        await message.client.sendMessage(message.jid, { sticker: stickerBuffer });
     } catch (error) {
-        console.error('Error setting group profile picture:', error);
-        await message.reply('Failed to set group profile picture. Error: ' + error.message);
+        console.error('Error modifying sticker:', error);
+        await message.reply('Failed to modify sticker. Error: ' + error.message);
     }
 });
-;
 
-
-
-const { toggleAntidelete, setAntideleteDestination } = require('../index');
-const config = require('../config');
 
 Index({
     pattern: 'antidelete ?(.*)',

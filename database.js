@@ -59,6 +59,11 @@ const WelcomeSetting = sequelize.define('WelcomeSetting', {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
+  welcomeMessage: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+    defaultValue: 'Welcome {mention} to {group}! 👋'
+  }
 });
 
 const checkDatabaseConnection = async () => {

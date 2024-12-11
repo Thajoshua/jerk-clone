@@ -6,6 +6,9 @@ const path = require('path');
 const axios = require('axios');
 const { numToJid } = require('../lib/index');
 
+// Store the auto reject state
+let autoRejectEnabled = false;
+
 Index({
   pattern: 'restart',
   fromMe: mode,
@@ -311,3 +314,83 @@ Index({
   await message.client.sendMessage(ownerJid, { text: forwardMessage });
   await message.reply('Your message has been sent successfully!');
 });
+
+
+Index({
+  pattern: 'anticall',
+  fromMe: true,
+  desc: 'Configure auto call reject settings',
+  type: 'admin'
+}, async (message) => {
+  const input = message.getUserInput()?.toLowerCase().trim();
+
+  if (!input || !['on', 'off', 'status'].includes(input)) {
+    return await message.reply(
+      '*🔄 Auto Call Reject Settings*\n\n' +
+      'Commands:\n' +
+      '├ .autocall on - Enable auto call reject\n' +
+      '├ .autocall off - Disable auto call reject\n' +
+      '└ .autocall status - Check current status\n\n' +
+      'Current Status: ' + (autoRejectEnabled ? 'Enabled ✅' : 'Disabled ❌')
+    );
+  }
+
+  switch (input) {
+    case 'on':
+      autoRejectEnabled = true;
+      await message.reply('✅ Auto call reject has been *enabled*');
+      break;
+
+    case 'off':
+      autoRejectEnabled = false;
+      await message.reply('❌ Auto call reject has been *disabled*');
+      break;
+
+    case 'status':
+      await message.reply(
+        '*🔄 Auto Call Reject Status*\n\n' +
+        `Status: ${autoRejectEnabled ? 'Enabled ✅' : 'Disabled ❌'}`
+      );
+      break;
+  }
+});
+
+// Call reject handler
+async function handleIncomingCall(call, client) {
+  if (!autoRejectEnabled) return;
+
+  try {
+    await client.rejectCall(call.id, call.from);
+    // Optionally send a message to the caller
+    await client.sendMessage(call.from, {
+      text: '❌ Auto reject is enabled. Voice and video calls are not accepted.'
+    });
+    
+    console.log('Rejected call from:', call.from);
+  } catch (error) {
+    console.error('Error rejecting call:', error);
+  }
+}
+
+Index({
+  pattern: 'joke',
+  fromMe: true,
+  desc: 'Get a random joke',
+  type: 'fun'
+}, async (message) => {
+  try {
+      const response = await fetch('https://official-joke-api.appspot.com/random_joke');
+      if (!response.ok) throw new Error('Network response was not ok');
+      const joke = await response.json();
+
+      await message.reply(`Here's a joke for you:\n\n${joke.setup}\n\n${joke.punchline}`);
+  } catch (error) {
+      console.error(error);
+      await message.reply("Sorry, I couldn't fetch a joke at the moment. Please try again later.");
+  }
+});
+
+
+module.exports = {
+  handleIncomingCall
+};

@@ -53,32 +53,27 @@ Index({
 
     const uptime = formatUptime(Math.floor(process.uptime()));
 
-    let response = `╭${currentStyle.border.repeat(3)}${currentStyle.header} ${Config.BOT_NAME} ${currentStyle.footer}${currentStyle.border.repeat(3)}⊷❍
-┃✧╭──────────────
-┃✧│ Owner : ${Config.OWNER_NAME}
-┃✧│ User : ${message.pushName}
-┃✧│ Plugins : ${commands.length}
-┃✧│ Runtime : ${uptime}
-┃✧│ Platform : ${os.platform()}
-┃✧│ Total RAM : ${totalMemory} GB
-┃✧│ Available RAM : ${freeMemory} GB
-┃✧│ Used RAM : ${usedMemory} GB
-┃✧│
-┃✧│  ▎▍▌▌▉▏▎▌▉▐▏▌▎
-┃✧│  ▎▍▌▌▉▏▎▌▉▐▏▌▎
-┃✧│   ${message.pushName}
-┃✧│
-┃✧╰───────────────
-╰${currentStyle.border.repeat(25)}⊷❍\n\n`;
+    let response = `╭─────── ${Config.BOT_NAME} ────────
+┃╭──────────────
+┃│ Owner : ${Config.OWNER_NAME}
+┃│ User : ${message.pushName}
+┃│ Plugins : ${commands.length}
+┃│ Runtime : ${uptime}
+┃│ Platform : ${os.platform()}
+┃│ Total RAM : ${totalMemory} GB
+┃│ Available RAM : ${freeMemory} GB
+┃│ Used RAM : ${usedMemory} GB
+┃╰───────────────
+╰────────────────────\n\n`;
 
     for (const [type, cmds] of Object.entries(categories)) {
-        response += `╭${currentStyle.border.repeat(4)}${currentStyle.header} ${type.toUpperCase()} ${currentStyle.footer}${currentStyle.border.repeat(4)}⊷❍
-│✧╭─────────────────
-│✧│`;
+        response += `╭────── ${type.toUpperCase()} ────────
+│╭──────────────
+││`;
         cmds.forEach(cmd => {
-            response += `\n│✧│ ${currentStyle.bullet} ${cmd}`;
+            response += `\n││* ${cmd}`;
         });
-        response += `\n┃✧╰─────────────────
+        response += `\n│╰─────────────────
 ╰${currentStyle.border.repeat(19)}⊷❍\n\n`;
     }
     await message.reply(response.trim());
