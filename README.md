@@ -1,6 +1,7 @@
-# Whatsapp-Bot
+# Axiom-Md
 
 ## Setup
 ```js
-npm start
+npm install
+npm runn start
 ```
