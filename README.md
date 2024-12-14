@@ -3,5 +3,5 @@
 ## Setup
 ```js
 npm install
-npm runn start
+npm run start
 ```
