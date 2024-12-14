@@ -12,7 +12,7 @@ Index({
         return await message.reply('This command can only be used in groups');
     }
 
-    const command = match ? match.trim().toLowerCase() : 'status';
+    const command = message.getUserInput() ? message.getUserInput().trim().toLowerCase() : 'status';
 
     try {
         // Get group metadata first to have access to all members

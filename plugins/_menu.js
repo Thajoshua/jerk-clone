@@ -2,14 +2,6 @@ const { Index, commands } = require('../lib/');
 const os = require('os');
 const Config = require('../config');
 
-const styles = [
-    { bullet: '◦➛', border: '═', header: '〘', footer: '〙' },
-    { bullet: '→', border: '─', header: '《', footer: '》' },
-    { bullet: '•', border: '=', header: '[', footer: ']' },
-    { bullet: '»', border: '─', header: '{', footer: '}' }
-];
-let styleIndex = 0;
-
 Index({
     pattern: 'menu',
     fromMe: true,
@@ -17,9 +9,6 @@ Index({
     dontAddCommandList: true,
     type: 'info'
 }, async (message) => {
-    const currentStyle = styles[styleIndex];
-    styleIndex = (styleIndex + 1) % styles.length;
-
     const categories = {};
 
     commands.forEach(cmd => {
@@ -44,37 +33,50 @@ Index({
     const usedMemory = (totalMemory - freeMemory).toFixed(2);
 
     const formatUptime = (seconds) => {
-        const pad = (s) => (s < 10 ? '0' + s : s);
-        const hours = pad(Math.floor(seconds / 3600));
-        const minutes = pad(Math.floor((seconds % 3600) / 60));
-        const secs = pad(seconds % 60);
-        return `${hours}:${minutes}:${secs}`;
+        seconds = Number(seconds);
+        const days = Math.floor(seconds / (3600 * 24));
+        const hours = Math.floor((seconds % (3600 * 24)) / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = Math.floor(seconds % 60);
+        
+        const parts = [];
+        if (days > 0) parts.push(`${days}d`);
+        if (hours > 0) parts.push(`${hours}h`); 
+        if (minutes > 0) parts.push(`${minutes}m`);
+        if (secs > 0) parts.push(`${secs}s`);
+        
+        return parts.join(' ') || '0s';
     };
 
     const uptime = formatUptime(Math.floor(process.uptime()));
 
-    let response = `╭─────── ${Config.BOT_NAME} ────────
-┃╭──────────────
-┃│ Owner : ${Config.OWNER_NAME}
-┃│ User : ${message.pushName}
-┃│ Plugins : ${commands.length}
-┃│ Runtime : ${uptime}
-┃│ Platform : ${os.platform()}
-┃│ Total RAM : ${totalMemory} GB
-┃│ Available RAM : ${freeMemory} GB
-┃│ Used RAM : ${usedMemory} GB
-┃╰───────────────
-╰────────────────────\n\n`;
+    let response = `╭─────────────┈⊷
+│ 「 *${Config.BOT_NAME}* 」
+╰┬────────────┈⊷
+┌┤
+││◦➛ Owner: ${Config.OWNER_NAME}
+││◦➛ User: ${message.pushName} 
+││◦➛ Plugins: ${commands.length}
+││◦➛ Uptime: ${uptime}
+││◦➛ Platform: ${os.platform()}
+││
+││◦➛ Memory Stats
+││◦➛ Total: ${totalMemory} GB
+││◦➛ Free: ${freeMemory} GB
+││◦➛ Used: ${usedMemory} GB
+│╰────────────┈⊷
+╰─────────────┈⊷\n\n`;
 
     for (const [type, cmds] of Object.entries(categories)) {
-        response += `╭────── ${type.toUpperCase()} ────────
-│╭──────────────
-││`;
+        response += `╭─────────────┈⊷
+│ 「 *${type.toUpperCase()}* 」
+╰┬────────────┈⊷
+┌┤\n`;
         cmds.forEach(cmd => {
-            response += `\n││* ${cmd}`;
+            response += `││◦➛ ${cmd}\n`;
         });
-        response += `\n│╰─────────────────
-╰${currentStyle.border.repeat(19)}⊷❍\n\n`;
+        response += `│╰────────────┈⊷
+╰─────────────┈⊷\n\n`;
     }
     await message.reply(response.trim());
 });
@@ -86,24 +88,28 @@ Index({
     dontAddCommandList: true,
     type: 'info'
 }, async (message) => {
-    let response = `╭═══〘 COMMAND LIST 〙═══⊷❍
-┃╭─────────────────\n`;
+    let response = `╭━━━━『 𝘾𝙊𝙈𝙈𝘼𝙉𝘿 𝙇𝙄𝙎𝙏 』━━━━⊷
+┃
+┃ Here are all available commands:
+┃\n`;
 
-commands.forEach(cmd => {
-    if (!cmd.dontAddCommandList) {
-        let commandName;
-        if (cmd.pattern instanceof RegExp) {
-            commandName = cmd.pattern.toString().split(/\W+/)[1];
-        } else if (typeof cmd.pattern === 'string') {
-            commandName = cmd.pattern.split('|')[0].trim();
-        } else {
-            commandName = 'unknown';
+    commands.forEach(cmd => {
+        if (!cmd.dontAddCommandList) {
+            let commandName;
+            if (cmd.pattern instanceof RegExp) {
+                commandName = cmd.pattern.toString().split(/\W+/)[1];
+            } else if (typeof cmd.pattern === 'string') {
+                commandName = cmd.pattern.split('|')[0].trim();
+            } else {
+                commandName = 'unknown';
+            }
+            response += `┃ ⦿ ${commandName}
+┃ ➥ ${cmd.desc}
+┃\n`;
         }
-        response += `┃│ ◦➛ ${commandName}\n┃│   ${cmd.desc}\n┃│\n`;
-    }
-});
+    });
 
-    response += `┃╰─────────────────
-╰═════════════════⊷❍`;
+    response += `┃
+╰━━━━━━━━━━━━━━━━━━━━━⊷`;
     await message.client.sendMessage(message.jid, { text: response.trim() });
 });

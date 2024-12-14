@@ -96,3 +96,59 @@ Index({
     const password = generatePassword(length, false);
     message.reply(password);
 });
+
+Index({
+    pattern: 'readmore',
+    fromMe: true,
+    desc: 'Creates text with readmore effect',
+    type: 'whatsapp'
+}, async (message) => {
+    const text = message.getUserInput();
+    if (!text) {
+        return await message.reply('Please provide text to add readmore effect.\nExample: .readmore Your text here');
+    }
+
+    try {
+        // Create readmore effect using invisible character
+        const readmoreText = text.replace(/\+/g, '\u200B'.repeat(4001));
+        await message.reply(readmoreText);
+    } catch (error) {
+        console.error('Error in readmore command:', error);
+        await message.reply('Failed to generate readmore text.');
+    }
+});
+
+Index({
+    pattern: 'wame',
+    fromMe: true,
+    desc: 'Generate WhatsApp me link for a user',
+    type: 'whatsapp'
+}, async (message) => {
+    try {
+        let userJid;
+        
+        // Get user JID from different possible sources
+        if (message.quoted) {
+            userJid = message.quoted.sender;
+        } else if (message.mentions && message.mentions.length > 0) {
+            userJid = message.mentions[0];
+        } else {
+            const input = message.getUserInput();
+            if (input) {
+                // If number is provided directly
+                userJid = input.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+            } else {
+                // Use sender's JID if no input is provided
+                userJid = message.sender;
+            }
+        }
+
+        // Generate WhatsApp me link
+        const wameLink = 'https://wa.me/' + userJid.split('@')[0];
+        
+        await message.reply(`*WhatsApp Me Link*\n${wameLink}`);
+    } catch (error) {
+        console.error('Error in wame command:', error);
+        await message.reply('Failed to generate WhatsApp me link.');
+    }
+});

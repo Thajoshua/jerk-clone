@@ -69,18 +69,86 @@ async function handleAntispam(message) {
 Index({
     pattern: 'add ?(.*)',
     fromMe: true,
-    desc: 'Add a member to the group',
+    desc: 'Add members to the group',
     type: 'group'
 }, async (message, match) => {
-    if (!message.isGroup) return await message.reply('This command can only be used in a group.');
-    if (!await isAdmin(message, message.client.user.id)) return await message.reply('I need to be an admin to add members.');
-    const userToAdd = message.getUserInput();
-    if (!userToAdd) return await message.reply('Please provide the number to add.'); 
+    if (!message.isGroup) {
+        return await message.reply('This command can only be used in groups.');
+    }
+
+    // Check if bot is admin
+    const groupMetadata = await message.client.groupMetadata(message.jid);
+    const botId = message.client.user.id.split(':')[0];
+    const botIsAdmin = groupMetadata.participants.some(p => 
+        (p.id.split('@')[0] === botId.split('@')[0]) && 
+        (p.admin === 'admin' || p.admin === 'superadmin')
+    );
+
+    if (!botIsAdmin) {
+        return await message.reply("I'm not an admin.");
+    }
+
+    // Get numbers to add
+    let numbers;
+    if (message.quoted) {
+        numbers = [message.quoted.sender];
+    } else {
+        const input = message.getUserInput();
+        if (!input) {
+            return await message.reply('Enter the numbers you want to add separated by commas.');
+        }
+        numbers = input.replace(/[^0-9,]/g, '').split(',').map(num => num.trim());
+    }
+
+    if (!numbers || numbers.length === 0) {
+        return await message.reply("Please provide valid numbers to add.");
+    }
+
+    // Convert numbers to WhatsApp format
+    const formattedNumbers = numbers.map(num => `${num}@s.whatsapp.net`);
+
+    // Check if numbers exist on WhatsApp
+    const onWhatsApp = await message.client.onWhatsApp(...formattedNumbers);
+    const validNumbers = onWhatsApp
+        .filter(contact => contact.exists)
+        .map(contact => contact.jid)
+        .filter(jid => jid !== message.client.user.jid);
+
+    if (!validNumbers || validNumbers.length === 0) {
+        return await message.reply("These numbers don't exist on WhatsApp.");
+    }
+
+    // Status messages
+    const messages = {
+        '403': "Couldn't add. Invite sent!",
+        '408': "Couldn't add because they left the group recently. Try again later.",
+        '401': "Couldn't add because they blocked the bot number.",
+        '200': "Added to the group.",
+        '409': "Already in the group."
+    };
+
     try {
-        await message.client.groupParticipantsUpdate(message.jid, [userToAdd + '@s.whatsapp.net'], 'add');
-        await message.reply('User added successfully.');
+        // Add participants
+        const results = await message.client.groupParticipantsUpdate(message.jid, validNumbers, 'add');
+        
+        // Prepare response message
+        let responseMsg = '';
+        for (let i = 0; i < results.length; i++) {
+            const result = results[i];
+            const number = validNumbers[i].split('@')[0];
+            const status = result.status || '200';
+            responseMsg += `@${number}: ${messages[status]}\n`;
+        }
+
+        // Send response with mentions
+        await message.client.sendMessage(message.jid, {
+            text: responseMsg.trim(),
+            mentions: validNumbers
+        });
+
     } catch (error) {
-        await message.reply('Failed to add user. Make sure the number is correct and the user hasn\'t restricted who can add them to groups.');
+        console.error('Error adding members:', error);
+        await message.reply('Failed to add members. Make sure the numbers are valid and the bot has permission.');
     }
 });
 
@@ -91,26 +159,69 @@ Index({
     type: 'group'
 }, async (message) => {
     if (!message.isGroup) {
-        await message.reply('This command can only be used in a group.');
-        return;
+        return await message.reply('This command can only be used in groups.');
     }
-    const groupMetadata = await message.getGroupMetadata(message.jid);
-    const isAdmin = groupMetadata.participants.some(p => p.id === message.sender && (p.admin === 'admin' || p.admin === 'superadmin'));
-    if (!isAdmin) {
-        await message.reply('This command can only be used by group admins.');
-        return;
+
+    // Check if bot is admin
+    const groupMetadata = await message.client.groupMetadata(message.jid);
+    const botId = message.client.user.id.split(':')[0];
+    const botIsAdmin = groupMetadata.participants.some(p => 
+        (p.id.split('@')[0] === botId.split('@')[0]) && 
+        (p.admin === 'admin' || p.admin === 'superadmin')
+    );
+
+    if (!botIsAdmin) {
+        return await message.reply("I'm not an admin.");
     }
-    const userToKick = message.getUserInput().replace(/[^0-9]/g, '') + '@s.whatsapp.net';
-    if (!userToKick) {
-        await message.reply('Please mention the user you want to kick or provide their number.');
-        return;
+
+    // Handle replied message
+    if (message.quoted) {
+        if (message.quoted.sender === message.client.user.id) {
+            return false; // Don't kick if it's bot's message
+        }
+        
+        try {
+            await message.client.sendMessage(message.jid, {
+                text: `@${message.quoted.sender.split('@')[0]}, Kicked From The Group`,
+                mentions: [message.quoted.sender]
+            });
+            
+            await message.client.groupParticipantsUpdate(
+                message.jid, 
+                [message.quoted.sender], 
+                'remove'
+            );
+        } catch (error) {
+            console.error('Error kicking user:', error);
+            return await message.reply('Failed to kick the user.');
+        }
     }
-    try {
-        await message.kick(userToKick);
-        await message.reply(`Successfully kicked @${userToKick.split('@')[0]} from the group.`);
-    } catch (error) {
-        console.error('Error kicking user:', error);
-        await message.reply('Failed to kick the user. Make sure the bot is an admin and the user is in the group.');
+    // Handle mentioned users
+    else if (message.mentions && message.mentions.length > 0) {
+        try {
+            let mentionText = '';
+            message.mentions.forEach(user => {
+                mentionText += `@${user.split('@')[0]},`;
+            });
+
+            await message.client.sendMessage(message.jid, {
+                text: `${mentionText} Kicked From The Group`,
+                mentions: message.mentions
+            });
+
+            await message.client.groupParticipantsUpdate(
+                message.jid,
+                message.mentions,
+                'remove'
+            );
+        } catch (error) {
+            console.error('Error kicking mentioned users:', error);
+            return await message.reply('Failed to kick mentioned users.');
+        }
+    }
+    // If no user is specified
+    else {
+        return await message.reply('*Give me a user!*\nReply to a message or mention users to kick.');
     }
 });
 
@@ -798,6 +909,56 @@ Index({
     } catch (error) {
         console.error('Error setting group icon:', error);
         await message.reply('Failed to update group icon. Make sure the image is valid and I have permission to change group settings.');
+    }
+});
+
+Index({
+    pattern: 'approve',
+    fromMe: true,
+    desc: 'Approve a group join request',
+    type: 'group'
+}, async (message) => {
+    if (!message.isGroup || !message.quoted) {
+        return await message.reply('Reply to the join request message to approve it.');
+    }
+
+    try {
+        await message.client.groupRequestParticipantsUpdate(
+            message.jid,
+            [message.quoted.sender],
+            'approve'
+        );
+        await message.reply(`Approved join request for @${message.quoted.sender.split('@')[0]}`, {
+            mentions: [message.quoted.sender]
+        });
+    } catch (error) {
+        console.error('Error approving request:', error);
+        await message.reply('Failed to approve join request.');
+    }
+});
+
+Index({
+    pattern: 'reject',
+    fromMe: true,
+    desc: 'Reject a group join request',
+    type: 'group'
+}, async (message) => {
+    if (!message.isGroup || !message.quoted) {
+        return await message.reply('Reply to the join request message to reject it.');
+    }
+
+    try {
+        await message.client.groupRequestParticipantsUpdate(
+            message.jid,
+            [message.quoted.sender],
+            'reject'
+        );
+        await message.reply(`Rejected join request from @${message.quoted.sender.split('@')[0]}`, {
+            mentions: [message.quoted.sender]
+        });
+    } catch (error) {
+        console.error('Error rejecting request:', error);
+        await message.reply('Failed to reject join request.');
     }
 });
 

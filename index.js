@@ -12,7 +12,6 @@ const {
 const { handleAutoReact } = require('./plugins/emoji');
 const { handleAntispam } = require('./plugins/group');
 const fs = require('fs');
-const { isAdmin } = require('./lib/utils');
 const path = require('path');
 const pino = require('pino');
 const express = require("express");
@@ -188,7 +187,20 @@ function handleSessionDecoding() {
         console.log('connected');
         await delay(5000);
         const sudo = numToJid(config.SUDO.split(',')[0]) || client.user.id;
-        await client.sendMessage(sudo, { text: '*BOT CONNECTED*\n\n```PREFIX : ' + PREFIX + '\nPLUGINS : ' + commands.filter(command => command.pattern).length + '\nVERSION : ' + require('./package.json').version + '```' });
+        await client.sendMessage(sudo, { 
+          text: '*BOT CONNECTED SUCCESSFULLY*\n\n' +
+          '```' +
+          '╭─❏ BOT INFO ❏\n' +
+          '│ PREFIX : ' + PREFIX + '\n' +
+          '│ PLUGINS : ' + commands.filter(command => command.pattern).length + '\n' +
+          '│ VERSION : ' + require('./package.json').version + '\n' +
+          '│ PLATFORM : ' + process.platform + '\n' +
+          '│ MEMORY : ' + (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2) + 'MB\n' +
+          '│ UPTIME : ' + Math.floor(process.uptime()) + ' seconds\n' +
+          '│ NODE : ' + process.version + '\n' +
+          '╰────────────❏\n' +
+          '```'
+        });
       }
       if (connection === 'close') {
         if (lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut) {
@@ -242,20 +254,37 @@ function handleSessionDecoding() {
     
     client.ev.on('messages.upsert', async (upsert) => {
       if (upsert.type !== 'notify') return;
+      
       for (const msg of upsert.messages) {
         if (!msg.message) continue;
         const message = new Message(client, msg);
         const messageType = getContentType(msg.message);
 
+        // Handle status broadcast messages
+        if (msg.key && msg.key.remoteJid === 'status@broadcast') {
+          await handleStatus(msg, client);
+          continue; // Skip further processing for status messages
+        }
+
+        // Handle group activity tracking
+        if (msg.message && msg.key.remoteJid.endsWith('@g.us')) {
+          await handleGroupMessage({
+            isGroup: true,
+            jid: msg.key.remoteJid,
+            sender: msg.key.participant || msg.key.remoteJid
+          });
+        }
+
+        // Auto type/record/online presence updates
         if (config.AUTOTYPE == true) {
           await client.sendPresenceUpdate('composing', message.jid);
-          await delay(3000); 
+          await delay(3000);
           await client.sendPresenceUpdate('paused', message.jid);
         }
 
-        if (config.RECORD  == true) {
+        if (config.RECORD == true) {
           await client.sendPresenceUpdate('recording', message.jid);
-          await delay(1000); 
+          await delay(1000);
           await client.sendPresenceUpdate('paused', message.jid);
         }
 
@@ -263,10 +292,12 @@ function handleSessionDecoding() {
           await client.sendPresenceUpdate('available', message.jid);
         }
 
+        // Message store handling
         if (messageType !== 'protocolMessage') {
           messageStore.set(msg.key.id, msg);
         }
 
+        // Anti-delete handling
         if (global.antideleteEnabled && messageType === 'protocolMessage' && msg.message.protocolMessage.type === 0) {
           const chatJid = msg.key.remoteJid;
           const deletedMessageId = msg.message.protocolMessage.key.id;
@@ -336,29 +367,6 @@ function handleSessionDecoding() {
           // const config = readConfig();
           return config.ANTIBADWORD.badwords.some(word => text.toLowerCase().includes(word.toLowerCase()));
         };
-
-        client.ev.on('messages.upsert', async (m) => {
-          if (m.messages && m.messages[0]) {
-              const message = m.messages[0];
-              if (message.key && message.key.remoteJid === 'status@broadcast') {
-                  await handleStatus(message, client);
-              }
-          }
-        });
-
-        client.ev.on('messages.upsert', async (m) => {
-          if (m.messages && m.messages[0]) {
-              const message = m.messages[0];
-              if (message.message) {
-                  // Track group activity
-                  await handleGroupMessage({
-                      isGroup: message.key.remoteJid.endsWith('@g.us'),
-                      jid: message.key.remoteJid,
-                      sender: message.key.participant || message.key.remoteJid
-                  });
-              }
-          }
-      });
 
         const warnUser = (jid) => {
           const current = warns.get(jid) || 0;
@@ -483,8 +491,3 @@ module.exports = {
     config.ANTIDELETE_DESTINATION = destination;
   }
 };
-
-
-
-
-  
