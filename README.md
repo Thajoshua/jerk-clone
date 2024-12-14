@@ -1,7 +1,10 @@
 # Axiom-Md
 
-## Setup
+## Install node_modules 
 ```js
 npm install
+```
+## Run Axiom
+```js
 npm run start
 ```
