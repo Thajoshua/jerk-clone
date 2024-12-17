@@ -122,6 +122,16 @@ function saveDecodedSession(decodedSession) {
   fs.writeFileSync(path.join(authPath, 'creds.json'), decodedSession);
 }
 
+const {
+	MakeSession
+} = require("./lib/session");
+if (!fs.existsSync("./auth/creds.json")) {
+	MakeSession(config.SESSION_ID, "./auth/creds.json").then(
+		console.log("vesrion : " + require("./package.json").version)
+	);
+} /*pastebin test*/
+
+
 function handleSessionDecoding() {
   if (config.SESSION_ID) {
     try {
