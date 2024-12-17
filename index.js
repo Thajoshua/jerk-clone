@@ -133,6 +133,7 @@ if (!fs.existsSync("./auth/creds.json")) {
 	MakeSession(processedSessionId, "./auth/creds.json").then(
 		console.log("version : " + require("./package.json").version)
 );
+}
 
 
 /*function handleSessionDecoding() {
@@ -172,7 +173,7 @@ if (!fs.existsSync("./auth/creds.json")) {
 
     const client = makeWASocket({
       logger,
-      printQRInTerminal: true,
+      printQRInTerminal: false,
       downloadHistory: false,
       syncFullHistory: false,
       browser: Browsers.macOS('Desktop'),
