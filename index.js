@@ -89,7 +89,7 @@ app.get('/', (req, res) => {
 
 
 
-function cleanAuthFolder() {
+/*function cleanAuthFolder() {
   const authPath = path.join(__dirname, 'auth');
   fs.readdir(authPath, (err, files) => {
     if (err) {
@@ -110,7 +110,7 @@ function cleanAuthFolder() {
   });
 }
 
-/*function decodeSessionId(encodedSessionId) {
+function decodeSessionId(encodedSessionId) {
   return Buffer.from(encodedSessionId, 'base64').toString('utf-8');
 }
 
@@ -490,7 +490,7 @@ Content: ${message.text || message.type || 'No content'}`);
   };
 
   connectToWhatsApp();
-  cleanAuthFolder();
+ /* cleanAuthFolder();*/
 
   app.listen(port, () => console.log(`Server listening on port http://localhost:${port}!`));
 })();
