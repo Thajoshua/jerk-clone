@@ -11,6 +11,7 @@ module.exports = {
   SESSION_ID: '',
   auto_status_saver:true,
   ONLINE: process.env.ONLINNE || true,
+  SESSION_ID: process.env.SESSION_ID || "",
   RECORD: process.env.RECORD || false,
   READ_CMD: toBool(process.env.READ_CMD),
   READ_MSG: toBool(process.env.READ_MSG),
