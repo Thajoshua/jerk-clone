@@ -110,7 +110,7 @@ function cleanAuthFolder() {
   });
 }
 
-function decodeSessionId(encodedSessionId) {
+/*function decodeSessionId(encodedSessionId) {
   return Buffer.from(encodedSessionId, 'base64').toString('utf-8');
 }
 
@@ -121,6 +121,7 @@ function saveDecodedSession(decodedSession) {
   }
   fs.writeFileSync(path.join(authPath, 'creds.json'), decodedSession);
 }
+*/
 
 const {
 	MakeSession
@@ -132,7 +133,7 @@ if (!fs.existsSync("./auth/creds.json")) {
 } /*pastebin test*/
 
 
-function handleSessionDecoding() {
+/*function handleSessionDecoding() {
   if (config.SESSION_ID) {
     try {
       const decodedSession = decodeSessionId(config.SESSION_ID);
@@ -145,15 +146,15 @@ function handleSessionDecoding() {
     console.log('No SESSION_ID found in config.js');
   }
 }
-
+*/
 
 (async () => {
   await checkDatabaseConnection();
 
 
-  handleSessionDecoding();
+ /* handleSessionDecoding();*/
 
-  const saveUserSession = async (jid, sessionData) => {
+ const saveUserSession = async (jid, sessionData) => {
     try {
       await UserSession.upsert({ jid, sessionData });
     } catch (error) {
@@ -232,6 +233,7 @@ function handleSessionDecoding() {
       await saveUserSession(client.user.id, creds);
     });
 
+    
     const { WelcomeSetting } = require('./database');
 
     client.ev.on('group-participants.update', async (notification) => {
