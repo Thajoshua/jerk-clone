@@ -1,343 +1,234 @@
-// const { Index, mode} = require('../lib/');
-// const {commands} = require('../lib/index');
-// const {Tiktok,ytv} = require('../lib/down')
-// const axios = require('axios');
-// const youtubeSearch = require('youtube-search-api');
-// const ytdl = require('ytdl-core');
-// const fs = require('fs');
-// const path = require('path');
-// const { ssweb } = require('../lib/utils'); 
+const { Index} = require('../lib/');
+const fg = require('api-dylux');
+const axios = require('axios');
+
+Index({
+  pattern: 'yta',
+  fromMe: true,
+  desc: 'Download audio from YouTube based on a provided URL',
+  type: 'downloader'
+}, async (message, match) => {
+  try {
+    const url = message.getUserInput();
+
+    if (!url) {
+      return await message.reply('Please provide a valid YouTube URL. Usage: .play <YouTube URL>');
+    }
+
+    const processingReaction = await message.react('⏳');
+
+    fg.yta(url)
+      .then(async data => {
+        const audioUrl = data.dl_url;
+        console.log(data);
+
+        await message.react('📥');
+        await message.reply(`Downloading ${data.title}...`);
+
+        await message.sendMedia({
+          url: audioUrl,
+          caption: data.title,
+          mimetype: 'audio/mpeg',
+        });
+
+        await message.react('✅');
+        setTimeout(async () => {
+          await message.react('');
+        }, 3000);
+
+      })
+      .catch(async e => {
+        await message.react('❌');
+        await message.reply('Error: ' + e.message);
+        setTimeout(async () => {
+          await message.react('');
+        }, 3000);
+      });
+  } catch (error) {
+    console.error('Error in YouTube download:', error);
+    await message.react('❌');
+    await message.reply('An error occurred while processing the request. Please try again later.');
+  }
+});
 
 
-// Index({
-//   pattern: 'tiktok',
-//   fromMe: true,
-//   desc: 'Downloads TikTok video(Without Watermark)',
-//   type: 'downloader'
-// }, async (message, match, client) => {
-//   const input = message.getUserInput().trim();
-//   if (!input) {
-//     return await message.reply('Please provide a TikTok URL.');
-//   }
+Index({
+  pattern: 'tiktok', 
+  fromMe: true,
+  desc: 'Download TikTok video using the link provided.',
+  type: 'download'
+}, async (message, match) => {
+  let link = message.getUserInput();
+  if (!link) return await message.reply("Please provide a TikTok video link.\n\nExample: .tikt https://vm.tiktok.com/xxxxx");
 
-//   try {
-//     const tiktokData = await Tiktok(input);
-//     const videoBuffer = await axios.get(tiktokData.watermark, { responseType: 'arraybuffer' }).then(res => res.data);
-
-//     await message.sendMedia({
-//       buffer: videoBuffer,
-//       caption: `${tiktokData.title}\n\n${tiktokData.author}`,
-//       mimetype: 'video/mp4'
-//     });
-//   } catch (error) {
-//     console.error('Error fetching TikTok video:', error);
-//     await message.reply('Failed to fetch TikTok video. Please try again later.');
-//   }
-// });
-
-
-// Index({
-//     pattern: 'pixabay',
-//     fromMe: true,
-//     desc: 'Search for images on Pixabay',
-//     type: 'search'
-// }, async (message, match) => {
-//     const query = message.getUserInput();
-//     if (!query) {
-//         return await message.reply('Please provide a search query. Usage: !pixabay [search query]');
-//     }
-//     try {
-//         const response = await axios.get(`https://api.maher-zubair.tech/search/pixabay`, {
-//             params: { q: query }
-//         });
-//         if (response.data && response.data.result && response.data.result.length > 0) {
-//             const imageUrls = response.data.result;
-//             if (imageUrls.length > 0) {
-//                 for (const imageUrl of imageUrls.slice(0, 5)) { 
-//                     await message.client.sendMessage(message.jid, { 
-//                         image: { url: imageUrl },
-//                         caption: `Image result for "${query}" from Pixabay`
-//                     });
-//                 }
-//             } else {
-//                 await message.reply('Sorry, no images were found for your query.');
-//             }
-//         } else {
-//             await message.reply('Failed to fetch images. Please try again later.');
-//         }
-//     } catch (error) {
-//         console.error('Error searching for images:', error);
-//         await message.reply('An error occurred while processing your request. Please try again later.');
-//     }
-// });
-
-
-
-// Index({
-// 	pattern: 'cmd ?(.*)',
-// 	fromMe: mode,
-// 	desc: 'cmd',
-// 	type: 'info'
-// }, async (message, match, client) => {
-// 	await message.reply(`${commands.filter(command => command.pattern).length}`);
-// });
-
-
-// Index({
-//     pattern: 'image ?(.*)',
-//     fromMe: true,
-//     desc: 'Search images on Unsplash',
-//     type: 'search'
-// }, async (message, match) => {
-//     const query = message.getUserInput();
-//     if (!query) {
-//         await message.reply('Please provide a search query.');
-//         return;
-//     }
-//     try {
-//         const response = await axios.get(`https://api.maher-zubair.tech/search/unsplash?q=${encodeURIComponent(query)}`);
-//         if (response.data && response.data.result && response.data.result.length > 0) {
-//             const images = response.data.result;
-//             const shuffledImages = images.sort(() => 0.5 - Math.random());
-//             const selectedImages = shuffledImages.slice(0, 5); 
-//             for (const image of selectedImages) {
-//                 await message.client.sendMessage(message.jid, {
-//                     image: { url: image },
-//                     caption: `*Search Result for:* ${query}`
-//                 });
-//             }
-//         } else {
-//             await message.reply('No images found for the provided query.');
-//         }
-//     } catch (error) {
-//         console.error('Error fetching images:', error);
-//         await message.reply('An error occurred while fetching images. Please try again later.');
-//     }
-// });
-
-
-
-// Index({
-//     pattern: 'ytv',
-//     fromMe: mode,
-//     desc: 'Download YouTube videos',
-//     type: 'downloader'
-// }, async (message, match) => {
-//     let [url, quality] = message.getUserInput().split(';');
-//     if (!url) {
-//         return await message.reply("Give me a YouTube link\n\nExample: ytv youtube.com/watch?v=xxxxx;480p");
-//     }
-//     if (!quality) {
-//         quality = "360p"; 
-//     }
-//     try {
-//         await message.reply("Downloading video. Please wait...");
-//         const videoData = await ytv(url, quality);
-//         if (!videoData || !videoData.dlink) {
-//             return await message.reply("Failed to fetch video information. Please try again.");
-//         }
-//         await message.client.sendMessage(message.jid, {
-//             video: { url: videoData.dlink },
-//             caption: `Title: ${videoData.title}\nQuality: ${quality}\nSize: ${videoData.sizes}`,
-//             mimetype: "video/mp4",
-//             fileName: `${videoData.title}.mp4`
-//         });
-
-//     } catch (error) {
-//         console.error('Error:', error);
-//         await message.reply('An error occurred while processing your request.');
-//     }
-// });
-
-
-// let awaitingSelection = false;
-// let searchResults = null;
-
-// Index({
-//   pattern: 'ytsearch ?(.*)',
-//   fromMe: true,
-//   desc: 'Search for videos on YouTube',
-//   type: 'search'
-// }, async (message, match) => {
-//   try {
-//     const query = message.getUserInput();
-//     if (!query) {
-//       return await message.reply('Please provide a search query. Usage: .ytsearch <query>');
-//     }
-
-//     await message.reply(`Searching YouTube for: "${query}"`);
-
-//     const results = await youtubeSearch.GetListByKeyword(query, false, 5);
-
-//     if (!results || results.items.length === 0) {
-//       return await message.reply('No results found for your search query.');
-//     }
-
-//     let response = '🔎 *YouTube Search Results*\n\n';
+  try {
+    const processingReaction = await message.react('⏳');
     
-//     results.items.forEach((video, index) => {
-//       response += `${index + 1}. *${video.title}*\n`;
-//       response += `    Channel: ${video.channelTitle}\n`;
-//       response += `    Duration: ${video.length.simpleText}\n\n`;
-//     });
+    const data = await fg.tiktok(link);
+    if (!data || !data.result || !data.result.play) {
+      await message.react('❌');
+      await message.reply(`Failed to fetch video information.\n\nResponse:\n${JSON.stringify(data, null, 2)}`);
+      setTimeout(async () => {
+        await message.react('');
+      }, 3000);
+      return;
+    }
 
-//     response += 'Reply with the number of the video you want to download (1-5), or type "cancel" to exit.';
+    await message.react('📥');
+    await message.reply(`Downloading ${data.result.title}...`);
 
-//     await message.reply(response);
+    await message.client.sendMessage(message.jid, {
+      video: { url: data.result.play },
+      caption: `Title: ${data.result.title}\n\n> Powered by Axiom-Md,`,
+      mimetype: "video/mp4",
+      fileName: `${data.result.title || 'TikTok Video AXIOM'}.mp4`
+    });
 
-//     awaitingSelection = true;
-//     searchResults = results.items;
+    await message.react('✅');
+    setTimeout(async () => {
+      await message.react('');
+    }, 3000);
 
-//   } catch (error) {
-//     console.error('Error in YouTube search command:', error);
-//     await message.reply('An error occurred while searching YouTube. Please try again later.');
-//   }
-// });
-
-// Index({
-//   on: 'message',
-//   fromMe: false,
-//   dontAddCommandList: true,
-// }, async (message) => {
-//   if (!awaitingSelection || !searchResults) return;
-
-//   const selection = message.text.trim();
-
-//   if (selection.toLowerCase() === 'cancel') {
-//     awaitingSelection = false;
-//     searchResults = null;
-//     return await message.reply('Search cancelled.');
-//   }
-
-//   const index = parseInt(selection) - 1;
-//   if (isNaN(index) || index < 0 || index >= searchResults.length) {
-//     return await message.reply('Invalid selection. Please select a number between 1 and 5.');
-//   }
-
-//   try {
-//     const selectedVideo = searchResults[index];
-//     await message.reply(`Downloading: ${selectedVideo.title}`);
-
-//     const videoUrl = `https://www.youtube.com/watch?v=${selectedVideo.id}`;
-
-//     const tempDir = path.join(__dirname, '../temp');
-//     if (!fs.existsSync(tempDir)) {
-//       fs.mkdirSync(tempDir, { recursive: true });
-//     }
-//     const filePath = path.join(tempDir, `${selectedVideo.id}.mp4`);
-
-//     const videoStream = ytdl(videoUrl, { filter: 'audioandvideo', format: 'mp4' });
-//     const writeStream = fs.createWriteStream(filePath);
-
-//     videoStream.pipe(writeStream);
-
-//     writeStream.on('finish', async () => {
-//       await message.sendMedia({
-//         url: filePath,
-//         caption: selectedVideo.title,
-//         mimetype: 'video/mp4'
-//       });
-
-//       fs.unlinkSync(filePath);
-//     });
-
-//     writeStream.on('error', async (error) => {
-//       console.error('Error in YouTube download:', error);
-//       await message.reply('An error occurred while downloading the video. Please try again later.');
-//       awaitingSelection = false;
-//       searchResults = null;
-//     });
-
-//   } catch (error) {
-//     console.error('Error in YouTube download:', error);
-//     await message.reply('An error occurred while downloading the video. Please try again later.');
-//     awaitingSelection = false;
-//     searchResults = null;
-//   }
-// });
+  } catch (error) {
+    await message.react('❌');
+    await message.reply(`Error occurred:\n\n${error.message}`);
+  }
+});
 
 
+Index({
+  pattern: 'lyric',
+  fromMe: true,
+  desc: 'Search for song lyrics',
+  type: 'utility'
+}, async (message, match) => {
+  try {
+    const query = message.getUserInput();
 
-// Index({
-//   pattern: 'ytaudio ?(.*)',
-//   fromMe: true,
-//   desc: 'Download audio from YouTube based on a search query',
-//   type: 'search'
-// }, async (message, match) => {
-//   try {
-//     const query = message.getUserInput();
-//     if (!query) {
-//       return await message.reply('Please provide a search query. Usage: .ytaudio <query>');
-//     }
+    if (!query) {
+      return await message.reply('Please provide a song name or query. Usage: .lyrics <song name>');
+    }
 
-//     const results = await youtubeSearch.GetListByKeyword(query, false, 1);
+    const processingReaction = await message.react('🔍');
 
-//     if (!results || results.items.length === 0) {
-//       return await message.reply('No results found for your search query.');
-//     }
+    const apiUrl = `https://itzpire.com/search/lyrics?query=${encodeURIComponent(query)}`;
+    const response = await axios.get(apiUrl);
 
-//     const selectedVideo = results.items[0];
-//     await message.reply(`Downloading: ${selectedVideo.title}`);
+    if (response.data.status !== 'success' || !response.data.data) {
+      await message.react('❌');
+      await message.reply('No lyrics found for your query. Please refine your search and try again.');
+      setTimeout(async () => {
+        await message.react('');
+      }, 3000);
+      return;
+    }
 
-//     const videoUrl = `https://www.youtube.com/watch?v=${selectedVideo.id}`;
+    const { title, album, thumb, lyrics } = response.data.data;
 
-//     const tempDir = path.join(__dirname, '../temp');
-//     if (!fs.existsSync(tempDir)) {
-//       fs.mkdirSync(tempDir, { recursive: true });
-//     }
-//     const filePath = path.join(tempDir, `${selectedVideo.id}.mp3`);
+    const resultText = `*${title}* - _Album:_ ${album}\n\n${lyrics}`;
 
-//     const videoStream = ytdl(videoUrl, { filter: 'audioonly' });
-//     const writeStream = fs.createWriteStream(filePath);
+    await message.reply(resultText);
+    await message.react('✅');
+    setTimeout(async () => {
+      await message.react('');
+    }, 3000);
 
-//     videoStream.pipe(writeStream);
-
-//     writeStream.on('finish', async () => {
-//       await message.sendMedia({
-//         url: filePath,
-//         caption: selectedVideo.title,
-//         mimetype: 'audio/mpeg'
-//       });
-
-//       fs.unlinkSync(filePath);
-//     });
-
-//     writeStream.on('error', async (error) => {
-//       console.error('Error in YouTube download:', error);
-//       await message.reply('An error occurred while downloading the song. Please try again later.');
-//     });
-
-//   } catch (error) {
-//     console.error('Error in YouTube download:', error);
-//     await message.reply('An error occurred while downloading the song. Please try again later.');
-//   }
-// });
+  } catch (error) {
+    console.error('Error in lyrics command:', error);
+    await message.react('❌');
+    await message.reply('An error occurred while processing your request. Please try again later.');
+  }
+});
 
 
-// Index({
-//   pattern: 'screenshot|ss',
-//   fromMe: true,
-//   desc: 'Take a screenshot of a webpage',
-//   type: 'utility'
-// }, async (message, match, client) => {
-//   const input = message.getUserInput().trim();
-//   const [url, device = 'desktop'] = input.split(' ');
-//   if (!url) {
-//     return await client.sendMessage(message.chat, { text: 'Please provide a URL.' }, { quoted: message.data });
-//   }
-//   try {
-//     const result = await ssweb(url, device);
-//     if (result.status !== 200) {
-//       return await client.sendMessage(message.chat, { text: `Error: ${result.message || 'Unable to take screenshot.'}` }, { quoted: message.data });
-//     }
-//     const screenshotPath = path.join(__dirname, 'screenshot.png');
-//     fs.writeFileSync(screenshotPath, result.result);
-//     await client.sendMessage(message.chat, { image: { url: screenshotPath }, caption: `Screenshot of ${url}` }, { quoted: message.data });
-//     fs.unlink(screenshotPath, (err) => {
-//       if (err) console.error('Error deleting screenshot file:', err);
-//     });
-//   } catch (error) {
-//     await client.sendMessage(message.chat, { text: 'Error taking or sending the screenshot. Please try again later.' }, { quoted: message.data });
-//     console.log(error);
-//   }
-// });
+Index({
+  pattern: 'modsearch',
+  fromMe: true,
+  desc: 'Search for apps on HappyMod',
+  type: 'utility'
+}, async (message, match) => {
+  try {
+    const query = message.getUserInput();
+
+    if (!query) {
+      return await message.reply('Please provide a search query. Usage: .modsearch <query>');
+    }
+
+    const processingReaction = await message.react('🔍');
+
+    const apiUrl = `https://itzpire.com/search/happymod?query=${encodeURIComponent(query)}`;
+    const response = await axios.get(apiUrl);
+
+    if (response.data.status !== 'success' || !response.data.data.length) {
+      await message.react('❌');
+      await message.reply('No results found for your query. Please refine your search and try again.');
+      setTimeout(async () => {
+        await message.react('');
+      }, 3000);
+      return;
+    }
+
+    const results = response.data.data.slice(0, 5).map((item, index) => {
+      return `*${index + 1}. ${item.title}*\nRating: ${item.rating}\n[Download Here](${item.link})`;
+    }).join('\n');
+
+    await message.reply(`*HappyMod Search Results for "${query}":*\n\n${results}`);
+    await message.react('✅');
+    setTimeout(async () => {
+      await message.react('');
+    }, 3000);
+
+  } catch (error) {
+    console.error('Error in modsearch command:', error);
+    await message.react('❌');
+    await message.reply('An error occurred while processing your request. Please try again later.');
+  }
+});
+
+
+Index({
+    pattern: 'ytv',
+    fromMe: true,
+    desc: 'Download YouTube videos',
+    type: 'downloader'
+}, async (message, match) => {
+    let url = message.getUserInput();
+
+    if (!url) {
+        return await message.reply("Please provide a YouTube link.\n\nExample: ytv youtube.com/watch?v=xxxxx");
+    }
+
+    try {
+        const processingReaction = await message.react('⏳');
+        
+        const videoData = await fg.ytv(url);
+        console.log(videoData);
+        
+        if (!videoData || !videoData.dl_url) {
+            await message.react('❌');
+            await message.reply("Failed to fetch video information. Please try again.");
+            setTimeout(async () => {
+              await message.react('');
+            }, 3000);
+            return;
+        }
+
+        await message.react('📥');
+        await message.client.sendMessage(message.jid, {
+            video: { url: videoData.dl_url },
+            caption: `🎥 *${videoData.title}*\n\n📁 *Size*: ${videoData.size}\n\n> Powered by Axiom-Md,`,
+            mimetype: "video/mp4",
+            fileName: `${videoData.title}.mp4`,
+        });
+
+        await message.react('✅');
+        setTimeout(async () => {
+          await message.react('');
+        }, 3000);
+
+    } catch (error) {
+        console.error('Error:', error);
+        await message.react('❌');
+        await message.reply('An error occurred while processing your request.');
+    }
+});

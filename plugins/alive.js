@@ -63,8 +63,8 @@ Index({
         let jid;
         if (message.mentionedJid && message.mentionedJid.length > 0) {
             jid = message.mentionedJid[0];
-        } else if (message.quoted && message.quoted.sender) {
-            jid = message.quoted.sender;
+        } else if (message.quoted && message.quoted.participant) {
+            jid = message.quoted.participant;
         } else {
             jid = message.chat;
         }

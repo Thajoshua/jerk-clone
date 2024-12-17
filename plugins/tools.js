@@ -129,7 +129,7 @@ Index({
         
         // Get user JID from different possible sources
         if (message.quoted) {
-            userJid = message.quoted.sender;
+            userJid = message.quoted.participant;
         } else if (message.mentions && message.mentions.length > 0) {
             userJid = message.mentions[0];
         } else {

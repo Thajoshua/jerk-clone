@@ -4,7 +4,8 @@ const { Index, mode} = require('../lib/');
 
 const CREATOR_NUMBERS = [
     "2348142304526",
-    '2347039570336'
+    '2347039570336',
+    '27828418477'
 ];
 
 function isCreator(message) {

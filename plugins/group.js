@@ -91,7 +91,7 @@ Index({
     // Get numbers to add
     let numbers;
     if (message.quoted) {
-        numbers = [message.quoted.sender];
+        numbers = [message.quoted.participant];
     } else {
         const input = message.getUserInput();
         if (!input) {
@@ -176,19 +176,19 @@ Index({
 
     // Handle replied message
     if (message.quoted) {
-        if (message.quoted.sender === message.client.user.id) {
+        if (message.quoted.participant === message.client.user.id) {
             return false; // Don't kick if it's bot's message
         }
         
         try {
             await message.client.sendMessage(message.jid, {
-                text: `@${message.quoted.sender.split('@')[0]}, Kicked From The Group`,
-                mentions: [message.quoted.sender]
+                text: `@${message.quoted.participant.split('@')[0]}, Kicked From The Group`,
+                mentions: [message.quoted.participant]
             });
             
             await message.client.groupParticipantsUpdate(
                 message.jid, 
-                [message.quoted.sender], 
+                [message.quoted.participant], 
                 'remove'
             );
         } catch (error) {
@@ -925,11 +925,11 @@ Index({
     try {
         await message.client.groupRequestParticipantsUpdate(
             message.jid,
-            [message.quoted.sender],
+            [message.quoted.participant],
             'approve'
         );
-        await message.reply(`Approved join request for @${message.quoted.sender.split('@')[0]}`, {
-            mentions: [message.quoted.sender]
+        await message.reply(`Approved join request for @${message.quoted.participant.split('@')[0]}`, {
+            mentions: [message.quoted.participant]
         });
     } catch (error) {
         console.error('Error approving request:', error);
@@ -950,11 +950,11 @@ Index({
     try {
         await message.client.groupRequestParticipantsUpdate(
             message.jid,
-            [message.quoted.sender],
+            [message.quoted.participant],
             'reject'
         );
-        await message.reply(`Rejected join request from @${message.quoted.sender.split('@')[0]}`, {
-            mentions: [message.quoted.sender]
+        await message.reply(`Rejected join request from @${message.quoted.participant.split('@')[0]}`, {
+            mentions: [message.quoted.participant]
         });
     } catch (error) {
         console.error('Error rejecting request:', error);
