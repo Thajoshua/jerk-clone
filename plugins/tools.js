@@ -2,6 +2,53 @@ const axios = require('axios');
 const { Index, commands } = require('../lib/');
 const generatePassword = require('password-generator');
 const googleTTS = require('google-tts-api');
+const { isValidURL, extractURL } = require('../lib/utils');
+const { TinyURL } = require('../lib/utils');
+
+
+Index({
+    pattern: 'short',
+    fromMe: true,
+    desc: 'Shorten a URL using TinyURL',
+    type: 'utility'
+}, async (message) => {
+    const input = message.getUserInput();
+    
+    if (!input) {
+        return await message.reply('Please provide a URL to shorten');
+    }
+
+    // Extract URL from the message
+    const url = extractURL(input);
+
+    if (!url) {
+        return await message.reply('No valid URL found in the message');
+    }
+
+    try {
+        // Validate the extracted URL
+        if (!isValidURL(url)) {
+            return await message.reply('Invalid URL format');
+        }
+        
+        const result = await TinyURL(url);
+        
+        // Prepare the response message
+        const responseMessage = `
+*URL Shortener:*
+-Original URL: ${url}
+-Shortened URL: ${result.link}
+        `.trim();
+        
+        // Send the response
+        await message.reply(responseMessage);
+    } catch (error) {
+        console.error('URL Shortening Error:', error);
+        await message.reply('Failed to shorten the URL. Please check the URL and try again.');
+    }
+});
+
+
 
 Index({
     pattern: 'tts',
