@@ -126,11 +126,13 @@ function saveDecodedSession(decodedSession) {
 const {
 	MakeSession
 } = require("./lib/session");
+
+const processedSessionId = config.SESSION_ID.replace(/^Axiom_/, '');
+
 if (!fs.existsSync("./auth/creds.json")) {
-	MakeSession(config.SESSION_ID, "./auth/creds.json").then(
-		console.log("vesrion : " + require("./package.json").version)
-	);
-} /*pastebin test*/
+	MakeSession(processedSessionId, "./auth/creds.json").then(
+		console.log("version : " + require("./package.json").version)
+);
 
 
 /*function handleSessionDecoding() {
