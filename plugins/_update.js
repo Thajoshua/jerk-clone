@@ -57,7 +57,7 @@ async function checkForUpdates() {
             updateText += `\n*${commit.message}*`;
             updateText += `\n└ _${commit.date.split('T')[0]}_\n`;
         }); 
-        updateText += `\n*Use ${config.HANDLERS[0]}update now to update the bot*`;
+        updateText += `\n*Use ${config.HANDLERS[2]}update now to update the bot*`;
         return { hasUpdates: true, updateText };
     } catch (error) {
         throw new Error('Failed to check updates: ' + error.message);
