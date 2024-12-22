@@ -104,25 +104,18 @@ Index({
         });
 
         if (command) {
-            let response = `╭───────────────────────⊷
-│ *COMMAND INFO* 
-├───────────────────────⊷
-│ ◦ Command: ${commandQuery}
-│ ◦ Description: ${command.desc}
-│ ◦ Type: ${command.type}
-│ ◦ FromMe: ${command.fromMe ? 'Yes' : 'No'}
-╰───────────────────────⊷`;
+            let response = `*Command Info*
+• Command: ${commandQuery}
+• Description: ${command.desc}
+• Type: ${command.type}
+• FromMe: ${command.fromMe ? 'Yes' : 'No'}`;
             return await message.client.sendMessage(message.jid, { text: response.trim() });
         } else {
             return await message.client.sendMessage(message.jid, { text: `❌ Command "${commandQuery}" not found!` });
         }
     }
 
-    // If no specific command was requested, show the full list
-    let response = `╭━━━━『 𝘾𝙊𝙈𝙈𝘼𝙉𝘿 𝙇𝙄𝙎𝙏 』━━━━⊷
-┃
-┃ Here are all available commands:
-┃\n`;
+    let response = `*Command List*\n\n`;
 
     commands.forEach(cmd => {
         if (!cmd.dontAddCommandList) {
@@ -134,13 +127,9 @@ Index({
             } else {
                 commandName = 'unknown';
             }
-            response += `┃ ⦿ ${commandName}
-┃ ➥ ${cmd.desc}
-┃\n`;
+            response += `• ${commandName}\n  ${cmd.desc}\n\n`;
         }
     });
 
-    response += `┃
-╰━━━━━━━━━━━━━━━━━━━━━⊷`;
     await message.client.sendMessage(message.jid, { text: response.trim() });
 });
