@@ -913,52 +913,30 @@ Index({
 });
 
 Index({
-    pattern: 'approve',
+    pattern: 'join ?(.*)',
     fromMe: true,
-    desc: 'Approve a group join request',
+    desc: 'Join a group using invite link',
     type: 'group'
-}, async (message) => {
-    if (!message.isGroup || !message.quoted) {
-        return await message.reply('Reply to the join request message to approve it.');
+}, async (message, match) => {
+    const input = message.getUserInput();
+    let inviteLink = input || (message.quoted ? message.quoted.text : null);
+    if (!inviteLink) {
+        return await message.reply('_Please provide a WhatsApp group invite link._');
     }
-
+    const waGroupRegex = /chat.whatsapp.com\/([0-9A-Za-z]{20,24})/;
+    const [_, code] = inviteLink.match(waGroupRegex) || [];
+    if (!code) {
+        return await message.reply('_Invalid invite link. Please provide a valid WhatsApp group invite link._');
+    }
     try {
-        await message.client.groupRequestParticipantsUpdate(
-            message.jid,
-            [message.quoted.participant],
-            'approve'
-        );
-        await message.reply(`Approved join request for @${message.quoted.participant.split('@')[0]}`, {
-            mentions: [message.quoted.participant]
-        });
+        const groupInfo = await message.client.groupGetInviteInfo(code);
+        if (groupInfo.size >= 1024) {return await message.reply('*Group is full!*');}
+        const join = await message.client.groupAcceptInvite(code);
+        if (!join) { return await message.reply('_Join request sent to the group admins._'); }
+        return await message.reply('_Successfully joined the group!_');
     } catch (error) {
-        console.error('Error approving request:', error);
-        await message.reply('Failed to approve join request.');
-    }
-});
-
-Index({
-    pattern: 'reject',
-    fromMe: true,
-    desc: 'Reject a group join request',
-    type: 'group'
-}, async (message) => {
-    if (!message.isGroup || !message.quoted) {
-        return await message.reply('Reply to the join request message to reject it.');
-    }
-
-    try {
-        await message.client.groupRequestParticipantsUpdate(
-            message.jid,
-            [message.quoted.participant],
-            'reject'
-        );
-        await message.reply(`Rejected join request from @${message.quoted.participant.split('@')[0]}`, {
-            mentions: [message.quoted.participant]
-        });
-    } catch (error) {
-        console.error('Error rejecting request:', error);
-        await message.reply('Failed to reject join request.');
+        console.error('Error joining group:', error);
+        return await message.reply('_Failed to join group. Make sure the invite link is valid and not expired._');
     }
 });
 

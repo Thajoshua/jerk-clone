@@ -104,12 +104,14 @@ Index({
         });
 
         if (command) {
-            let response = `╭━━━『 𝘾𝙊𝙈𝙈𝘼𝙉𝘿 𝙄𝙉𝙁𝙊 』━━━⊷
-┃ Command: ${commandQuery}
-┃ Description: ${command.desc}
-┃ Type: ${command.type}
-┃ FromMe: ${command.fromMe ? 'Yes' : 'No'}
-╰━━━━━━━━━━━━━━━━━━━━━⊷`;
+            let response = `╭───────────────────────⊷
+│ *COMMAND INFO* 
+├───────────────────────⊷
+│ ◦ Command: ${commandQuery}
+│ ◦ Description: ${command.desc}
+│ ◦ Type: ${command.type}
+│ ◦ FromMe: ${command.fromMe ? 'Yes' : 'No'}
+╰───────────────────────⊷`;
             return await message.client.sendMessage(message.jid, { text: response.trim() });
         } else {
             return await message.client.sendMessage(message.jid, { text: `❌ Command "${commandQuery}" not found!` });
