@@ -743,7 +743,7 @@ Index({
 
 
 Index({
-  pattern: 'creategc',
+  pattern: 'creategc(?: (.*))?',
   fromMe: true,
   desc: 'Create a new group and send the group details',
   type: 'group'
