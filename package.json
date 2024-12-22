@@ -42,6 +42,7 @@
     "qrcode-terminal": "^0.12.0",
     "secktor-pack": "^0.0.1-development",
     "sequelize": "^6.37.3",
+    "simple-git": "^3.27.0",
     "sqlite3": "^5.1.7",
     "systeminformation": "^5.22.11",
     "tesseract.js": "^5.1.0",
