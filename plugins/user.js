@@ -415,27 +415,28 @@ Index({
 Index({
   pattern: 'forward ?(.*)',
   fromMe: true,
-  desc: 'Forward a message to a specific number/group',
+  desc: 'Forward a message to one or multiple numbers/groups',
   type: 'utility'
 }, async (message, match) => {
   try {
-    // Check if message is quoted
     if (!message.quoted) {
       return await message.reply('Please reply to a message to forward it.');
     }
 
-    // Get the target JID
-    const targetJid = message.getUserInput();
-    if (!targetJid) {
-      return await message.reply('Please provide a number/group ID to forward to.\n\nExample: .forward 1234567890');
+    // Get the target JIDs
+    const targetJids = message.getUserInput();
+    if (!targetJids) {
+      return await message.reply('Please provide number(s)/group ID(s) to forward to.\n\nExample:\n.forward 1234567890,987654321\n.forward 1234567890');
     }
 
-    // Format the JID
-    let formattedJid = targetJid;
-    if (!targetJid.includes('@')) {
-      formattedJid = targetJid.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
-    }
-
+    // Split and format JIDs
+    const jids = targetJids.split(',').map(jid => {
+      jid = jid.trim();
+      if (!jid.includes('@')) {
+        return jid.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+      }
+      return jid;
+    });
 
     let messageContent;
     const quotedType = message.quotedType;
@@ -478,9 +479,29 @@ Index({
       return await message.reply('Unsupported message type for forwarding');
     }
 
-    await message.client.sendMessage(formattedJid, messageContent);
-    await message.react('✅');
-    await message.reply(`Message forwarded successfully to ${formattedJid}`);
+    // Forward to all JIDs
+    let successCount = 0;
+    let failedJids = [];
+
+    for (const jid of jids) {
+      try {
+        await message.client.sendMessage(jid, messageContent);
+        successCount++;
+      } catch (error) {
+        failedJids.push(jid);
+        console.error(`Failed to forward to ${jid}:`, error);
+      }
+    }
+
+    // Send status report
+    let statusMessage = `Forward Status:\n✅ Successfully sent to ${successCount}/${jids.length} recipients`;
+    if (failedJids.length > 0) {
+      statusMessage += `\n❌ Failed to send to:\n${failedJids.join('\n')}`;
+    }
+
+    await message.react(failedJids.length === 0 ? '✅' : '⚠️');
+    await message.reply(statusMessage);
+    
     setTimeout(() => {
       message.react('');
     }, 3000);
