@@ -14,6 +14,7 @@ const path = require('path');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const FormData = require('form-data');
+const Jimp = require('jimp');
 
 // Helper function to convert WebP to MP4
 async function convertWebpToMp4(webpBuffer) {
@@ -24,14 +25,9 @@ async function convertWebpToMp4(webpBuffer) {
 
         // Write the WebP buffer to a temporary file
         await fs.promises.writeFile(tempWebpPath, webpBuffer);
-
-        // Convert WebP to MP4 using ffmpeg
+  // Convert WebP to MP4 using ffmpeg
         await execAsync(`ffmpeg -i ${tempWebpPath} -vf "format=yuv420p" -movflags +faststart ${tempMp4Path}`);
-
-        // Read the resulting MP4 file
         const mp4Buffer = await fs.promises.readFile(tempMp4Path);
-
-        // Clean up temporary files
         await fs.promises.unlink(tempWebpPath);
         await fs.promises.unlink(tempMp4Path);
 
@@ -316,6 +312,29 @@ Index({
     }
 });
 
+const webp2mp4 = async (buff) => {
+    let buffer = await webp2mp4File(buff);
+    return buffer;
+}
+
+Index({
+    pattern: "mp4",
+    fromMe: mode,
+    desc: "Changes sticker to Video",
+    type: "converter",
+  },
+  async (message) => {
+    if (!message.quoted)
+      return await message.reply("_Reply to a sticker_");
+    if (message.quotedType !== "stickerMessage")
+      return await message.reply("_Not a sticker_");
+    let buff = await message.downloadMediaMessage();
+    let buffer = await webp2mp4(buff);
+    return await message.sendMessage(buffer, {}, "video");
+  }
+);
+
+
 
 Index({
     pattern: 'antidelete ?(.*)',
@@ -344,5 +363,43 @@ Index({
         const status = global.antideleteEnabled ? 'enabled' : 'disabled';
         const destination = config.ANTIDELETE_DESTINATION;
         return await message.reply(`Antidelete is currently ${status}.\nCurrent destination: ${destination}\n\nUsage:\n.antidelete on - Enable antidelete\n.antidelete off - Disable antidelete\n.antidelete chat - Send to current chat\n.antidelete sudo - Send to sudo user\n.antidelete jid - Send to specific JID`);
+    }
+});
+
+Index({
+    pattern: 'textsticker ?(.*)',
+    fromMe: true,
+    desc: 'Create a sticker from text. Usage: .textsticker text;pack;author',
+    type: 'media'
+}, async (message, match) => {
+    try {
+        const input = message.getUserInput();
+        if (!input) {
+            await message.reply('Please provide text to convert. Usage: .textsticker text;pack;author');
+            return;
+        }
+        const [text, pack, author] = input.split(';');
+        const image = new Jimp(512, 512, 0x00000000);
+        const font = await Jimp.loadFont(Jimp.FONT_SANS_64_WHITE);
+        const textWidth = Jimp.measureText(font, text);
+        const textHeight = Jimp.measureTextHeight(font, text, textWidth);
+        const x = (512 - textWidth) / 2;
+        const y = (512 - textHeight) / 2;
+        image.print(font, x, y, text);
+        const buffer = await image.getBufferAsync(Jimp.MIME_PNG);
+        const sticker = new Sticker(buffer, {
+            pack: pack || 'AXIOM',
+            author: author || 'AXIOM',
+            type: StickerTypes.FULL,
+            categories: ['🤖', '👍'],
+            quality: 50,
+            background: 'transparent'
+        });
+
+        const stickerBuffer = await sticker.toBuffer();
+        await message.client.sendMessage(message.jid, { sticker: stickerBuffer });
+    } catch (error) {
+        console.error('Error creating text sticker:', error);
+        await message.reply('Failed to create text sticker. Error: ' + error.message);
     }
 });

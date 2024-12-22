@@ -96,48 +96,54 @@ Index({
 });
 
 
+
+
 Index({
-  pattern: 'lyric',
-  fromMe: true,
-  desc: 'Search for song lyrics',
-  type: 'utility'
+    pattern: "lyrics",
+    fromMe: true,
+    desc: "Fetch song lyrics",
+    type: "search",
 }, async (message, match) => {
-  try {
-    const query = message.getUserInput();
+    try {
+        let songName = message.getUserInput()?.trim();
+        
+        if (!songName) {
+            return await message.reply('Please provide a song name to fetch the lyrics.');
+        }
 
-    if (!query) {
-      return await message.reply('Please provide a song name or query. Usage: .lyrics <song name>');
+        let apiUrl = `https://api.popcat.xyz/lyrics?song=${encodeURIComponent(songName)}`;
+        let response = await axios.get(apiUrl);
+        message.react('⏳');
+        let data = response.data;
+
+        if (data && data.lyrics) {
+            let { title, image, artist, lyrics } = data;
+
+            await message.client.sendMessage(message.jid, {
+                text: `*Title:* ${title}\n*Artist:* ${artist}\n\n*Lyrics:*\n${lyrics}`,
+                contextInfo: {
+                    externalAdReply: {
+                        title: title,
+                        body: `Artist: ${artist}\nPowered by Axiom-Md,`,
+                        renderLargerThumbnail: true,
+                        thumbnailUrl: image,
+                        mediaType: 1,
+                        mediaUrl: image,
+                        sourceUrl: image
+                    }
+                }
+            });
+            await message.react('✅');
+            setTimeout(async () => {
+              await message.react('');
+            }, 3000);
+        } else {
+            await message.reply('No lyrics found.');
+        }
+    } catch (error) {
+        console.error('Error fetching lyrics:', error);
+        await message.reply('An error occurred while fetching the lyrics. Please try again later.');
     }
-
-    const processingReaction = await message.react('🔍');
-
-    const apiUrl = `https://itzpire.com/search/lyrics?query=${encodeURIComponent(query)}`;
-    const response = await axios.get(apiUrl);
-
-    if (response.data.status !== 'success' || !response.data.data) {
-      await message.react('❌');
-      await message.reply('No lyrics found for your query. Please refine your search and try again.');
-      setTimeout(async () => {
-        await message.react('');
-      }, 3000);
-      return;
-    }
-
-    const { title, album, thumb, lyrics } = response.data.data;
-
-    const resultText = `*${title}* - _Album:_ ${album}\n\n${lyrics}`;
-
-    await message.reply(resultText);
-    await message.react('✅');
-    setTimeout(async () => {
-      await message.react('');
-    }, 3000);
-
-  } catch (error) {
-    console.error('Error in lyrics command:', error);
-    await message.react('❌');
-    await message.reply('An error occurred while processing your request. Please try again later.');
-  }
 });
 
 

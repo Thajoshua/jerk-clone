@@ -24,6 +24,7 @@ const { sequelize, UserSession, checkDatabaseConnection } = require('./database'
 const { handleIncomingCall } = require('./plugins/user');
 const { handleStatus } = require('./plugins/status');
 const { handleGroupMessage } = require('./plugins/activity');
+const { checkForUpdates } = require('./plugins/_update');
 
 const port = 3000;
 
@@ -201,6 +202,19 @@ if (!fs.existsSync("./auth/creds.json")) {
         console.log('connected');
         await delay(5000);
         const sudo = numToJid(config.SUDO.split(',')[0]) || client.user.id;
+
+        let updateStatus;
+        try {
+          updateStatus = await checkForUpdates();
+        } catch (error) {
+          console.log('Update check failed:', error);
+        }
+
+        let updateInfo = '';
+        if (updateStatus?.hasUpdates) {
+          updateInfo = '\n\n' + updateStatus.updateText;
+        }
+
         await client.sendMessage(sudo, { 
           text: '*BOT CONNECTED SUCCESSFULLY*\n\n' +
           '```' +
@@ -213,7 +227,8 @@ if (!fs.existsSync("./auth/creds.json")) {
           '│ UPTIME : ' + Math.floor(process.uptime()) + ' seconds\n' +
           '│ NODE : ' + process.version + '\n' +
           '╰────────────❏\n' +
-          '```'
+          '```' + 
+          updateInfo
         });
       }
       if (connection === 'close') {

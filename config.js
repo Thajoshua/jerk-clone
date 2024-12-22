@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const toBool = (x) => x == 'true';
 module.exports = {
-  HANDLERS: (process.env.HANDLERS || '^[.]').trim(),
+  HANDLERS: (process.env.HANDLERS || '^[/]').trim(),
   MODE: (process.env.MODE || 'private').toLowerCase(),
   ERROR_MSG: toBool(process.env.ERROR_MSG) || true,
   LOG_MSG: toBool(process.env.LOG_MSG) || true,

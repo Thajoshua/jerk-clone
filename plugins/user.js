@@ -5,6 +5,17 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const { numToJid } = require('../lib/index');
+const { DataTypes } = require('sequelize');
+const { sequelize, AliveSettings } = require('../database');
+
+// Helper function for uptime
+function formatUptime() {
+  const uptime = process.uptime();
+  const hours = Math.floor(uptime / 3600);
+  const minutes = Math.floor((uptime % 3600) / 60);
+  const seconds = Math.floor(uptime % 60);
+  return `${hours}h ${minutes}m ${seconds}s`;
+}
 
 // Store the auto reject state
 let autoRejectEnabled = false;
@@ -103,108 +114,39 @@ Index({
 
 
 
-function getUptime() {
-  const uptime = process.uptime();
-  const hours = Math.floor(uptime / 3600);
-  const minutes = Math.floor((uptime % 3600) / 60);
-  const seconds = Math.floor(uptime % 60);
-  return `${hours}h ${minutes}m ${seconds}s`;
-}
-
-function loadUserConfig() {
-  const configPath = path.join(__dirname, 'alive_config.json');
-  if (fs.existsSync(configPath)) {
-    return JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  }
-  return {
-    message: "I'm alive!\n@username\nUptime: @uptime",
-    profilePicUrl: '',
-    customFields: {}
-  };
-}
-
-function replacePlaceholders(message, data) {
-  return message.replace(/@(\w+)/g, (match, key) => {
-    return data[key] || match;
-  });
-}
-
-Index({
-  pattern: 'alive',
-  fromMe: true,
-  desc: 'Show bot status, set custom message, profile picture, and fields',
-  type: 'info'
-}, async (message) => {
-  const config = loadUserConfig();
-  const input = message.getUserInput();
-  const [command, ...args] = input ? input.split(' ') : [];
-
-  switch (command) {
-    case 'set':
-      if (args.length === 0) return message.reply('Please provide the alive message. Usage: .alive set Your custom message here');
-      config.message = args.join(' ');
-      fs.writeFileSync(path.join(__dirname, 'alive_config.json'), JSON.stringify(config, null, 2));
-      return message.reply('Alive message updated successfully');
-
-    case 'pic':
-      if (args.length === 0) return message.reply('Please provide the profile picture URL. Usage: .alive pic https://example.com/your-image.jpg');
-      config.profilePicUrl = args[0];
-      fs.writeFileSync(path.join(__dirname, 'alive_config.json'), JSON.stringify(config, null, 2));
-      return message.reply('Alive profile picture updated successfully');
-
-    case 'field':
-      if (args.length < 2) return message.reply('Please provide the field name and value. Usage: .alive field fieldname fieldvalue');
-      const [fieldName, ...fieldValue] = args;
-      config.customFields[fieldName] = fieldValue.join(' ');
-      fs.writeFileSync(path.join(__dirname, 'alive_config.json'), JSON.stringify(config, null, 2));
-      return message.reply(`Custom field "${fieldName}" added successfully`);
-
-    default:
-      const data = {
-        username: message.pushName,
-        uptime: getUptime(),
-        ...config.customFields
-      };
-
-      const response = replacePlaceholders(config.message, data);
-
-      if (config.profilePicUrl) {
-        try {
-          const { data } = await axios.get(config.profilePicUrl, { responseType: 'arraybuffer' });
-          await message.sendMedia({
-            buffer: Buffer.from(data),
-            mimetype: 'image/jpeg',
-            caption: response
-          });
-        } catch (error) {
-          console.error('Error fetching profile picture:', error);
-          await message.reply(response + '\n(Failed to load profile picture)');
-        }
-      } else {
-        await message.reply(response);
-      }
-  }
-});
 
 
 Index({
   pattern: 'userinfo',
-  fromMe: true,
+  fromMe: false,
   desc: 'Display information about the user',
   type: 'utility'
 }, async (message) => {
-  const { jid, pushName } = message;
-  const ppUrl = await message.client.profilePictureUrl(jid, 'image');
+  try {
+    const userInput = await message.getUserInput();
+    
+    const userJid = userInput 
+      ? `${userInput}@s.whatsapp.net` 
+      : message.sender;
 
-  const userInfo = `
-      Name: ${pushName || 'Unknown'}
-      ID: ${jid}
-      Profile Picture: ${ppUrl || 'No profile picture available'}
-  `;
+    const ppUrl = await message.client.profilePictureUrl(userJid, 'image').catch(() => null);
+    let userInfo = `*User Information*\n\n`;
+    userInfo += `• Name: ${message.pushName || 'Unknown'}\n`;
+    userInfo += `• Number: ${userJid.split('@')[0]}\n`;
 
-  await message.reply(userInfo);
+    if (ppUrl) {
+      await message.client.sendMessage(message.chat, {
+        image: { url: ppUrl },
+        caption: userInfo
+      });
+    } else {
+      await message.reply(userInfo);
+    }
+  } catch (error) {
+    console.error('Error in userinfo command:', error);
+    await message.reply('Could not retrieve user information.');
+  }
 });
-
 
 Index({
   pattern: 'save',
@@ -355,13 +297,10 @@ Index({
   }
 });
 
-// Call reject handler
 async function handleIncomingCall(call, client) {
   if (!autoRejectEnabled) return;
-
   try {
     await client.rejectCall(call.id, call.from);
-    // Optionally send a message to the caller
     await client.sendMessage(call.from, {
       text: '❌ Auto reject is enabled. Voice and video calls are not accepted.'
     });
@@ -390,7 +329,235 @@ Index({
   }
 });
 
+function getUptime() {
+  const uptime = process.uptime();
+  const hours = Math.floor(uptime / 3600);
+  const minutes = Math.floor((uptime % 3600) / 60);
+  const seconds = Math.floor(uptime % 60);
+  return `${hours}h ${minutes}m ${seconds}s`;
+}
+
+function loadUserConfig() {
+  const configPath = path.join(__dirname, 'alive_config.json');
+  if (fs.existsSync(configPath)) {
+    return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  }
+  return {
+    message: "I'm alive!\n@username\nUptime: @uptime",
+    profilePicUrl: '',
+    customFields: {}
+  };
+}
+
+function replacePlaceholders(message, data) {
+  return message.replace(/@(\w+)/g, (match, key) => {
+    return data[key] || match;
+  });
+}
+
+Index({
+  pattern: 'alive',
+  fromMe: true,
+  desc: 'Show bot status, set custom message, profile picture, and fields',
+  type: 'info'
+}, async (message) => {
+  const config = loadUserConfig();
+  const input = message.getUserInput();
+  const [command, ...args] = input ? input.split(' ') : [];
+
+  switch (command) {
+    case 'set':
+      if (args.length === 0) return message.reply('Please provide the alive message. Usage: .alive set Your custom message here');
+      config.message = args.join(' ');
+      fs.writeFileSync(path.join(__dirname, 'alive_config.json'), JSON.stringify(config, null, 2));
+      return message.reply('Alive message updated successfully');
+
+    case 'pic':
+      if (args.length === 0) return message.reply('Please provide the profile picture URL. Usage: .alive pic https://example.com/your-image.jpg');
+      config.profilePicUrl = args[0];
+      fs.writeFileSync(path.join(__dirname, 'alive_config.json'), JSON.stringify(config, null, 2));
+      return message.reply('Alive profile picture updated successfully');
+
+    case 'field':
+      if (args.length < 2) return message.reply('Please provide the field name and value. Usage: .alive field fieldname fieldvalue');
+      const [fieldName, ...fieldValue] = args;
+      config.customFields[fieldName] = fieldValue.join(' ');
+      fs.writeFileSync(path.join(__dirname, 'alive_config.json'), JSON.stringify(config, null, 2));
+      return message.reply(`Custom field "${fieldName}" added successfully`);
+
+    default:
+      const data = {
+        username: message.pushName,
+        uptime: getUptime(),
+        ...config.customFields
+      };
+
+      const response = replacePlaceholders(config.message, data);
+
+      if (config.profilePicUrl) {
+        try {
+          const { data } = await axios.get(config.profilePicUrl, { responseType: 'arraybuffer' });
+          await message.sendMedia({
+            buffer: Buffer.from(data),
+            mimetype: 'image/jpeg',
+            caption: response
+          });
+        } catch (error) {
+          console.error('Error fetching profile picture:', error);
+          await message.reply(response + '\n(Failed to load profile picture)');
+        }
+      } else {
+        await message.reply(response);
+      }
+  }
+});
+
+Index({
+  pattern: 'forward ?(.*)',
+  fromMe: true,
+  desc: 'Forward a message to a specific number/group',
+  type: 'utility'
+}, async (message, match) => {
+  try {
+    // Check if message is quoted
+    if (!message.quoted) {
+      return await message.reply('Please reply to a message to forward it.');
+    }
+
+    // Get the target JID
+    const targetJid = message.getUserInput();
+    if (!targetJid) {
+      return await message.reply('Please provide a number/group ID to forward to.\n\nExample: .forward 1234567890');
+    }
+
+    // Format the JID
+    let formattedJid = targetJid;
+    if (!targetJid.includes('@')) {
+      formattedJid = targetJid.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+    }
+
+
+    let messageContent;
+    const quotedType = message.quotedType;
+    if (quotedType === 'conversation' || quotedType === 'extendedTextMessage') {
+      messageContent = {
+        text: message.quotedText
+      };
+    } else if (message.quoted.message) {
+      const buffer = await message.downloadMediaMessage();
+      if (quotedType === 'imageMessage') {
+        messageContent = {
+          image: buffer,
+          caption: message.quoted.message.imageMessage?.caption || ''
+        };
+      } else if (quotedType === 'videoMessage') {
+        messageContent = {
+          video: buffer,
+          caption: message.quoted.message.videoMessage?.caption || ''
+        };
+      } else if (quotedType === 'audioMessage') {
+        messageContent = {
+          audio: buffer,
+          mimetype: 'audio/mp4'
+        };
+      } else if (quotedType === 'stickerMessage') {
+        messageContent = {
+          sticker: buffer
+        };
+      } else if (quotedType === 'documentMessage') {
+        messageContent = {
+          document: buffer,
+          mimetype: message.quoted.message.documentMessage?.mimetype,
+          fileName: message.quoted.message.documentMessage?.fileName
+        };
+      }
+    }
+
+    if (!messageContent) {
+      message.react('❌')
+      return await message.reply('Unsupported message type for forwarding');
+    }
+
+    await message.client.sendMessage(formattedJid, messageContent);
+    await message.react('✅');
+    await message.reply(`Message forwarded successfully to ${formattedJid}`);
+    setTimeout(() => {
+      message.react('');
+    }, 3000);
+
+  } catch (error) {
+    message.react('❌')
+    console.error('Forward command error:', error);
+    await message.reply('Failed to forward message: ' + error.message);
+  }
+});
+
+
+Index({
+  pattern: "setpp",
+  fromMe: true,
+  desc: "Set profile picture",
+  type: "user",
+},
+async (message) => {
+  if (!message.quoted ){
+    return await message.reply("_Reply to a photo_");
+  }
+  let buff = await message.downloadMediaMessage();
+  await message.setPP(message.user, buff);
+  return await message.reply("_Profile Picture Updated_");
+}
+);
+
+let gis = require("g-i-s");
+
+const sendfromurl = async (message, url) => {
+  let buff = await axios.get(url, { responseType: 'arraybuffer' });
+  await message.sendMedia({
+    buffer: Buffer.from(buff.data),
+    mimetype: 'image/jpeg',
+    caption: message.quotedText
+  });
+}
+
+Index({
+  pattern: "img",
+  fromMe: true,
+  desc: "Google Image search",
+  type: "downloader",
+}, async (message, match, m) => {
+  const input = message.getUserInput();
+  if (!input) return await message.sendMessage(message.jid,"Enter Search Term,number");
+  let [query, amount] = input.split(",");
+  let result = await gimage(query, amount);
+  await message.sendMessage(
+    message.jid,
+      `_Downloading ${amount || 5} images for ${query}_`
+    );
+    for (let i of result) {
+      await sendfromurl(message, i);
+    }
+  }
+);
+
+async function gimage(query, amount = 5) {
+  let list = [];
+  return new Promise((resolve, reject) => {
+    gis(query, async (error, result) => {
+      for (
+        var i = 0;
+        i < (result.length < amount ? result.length : amount);
+        i++
+      ) {
+        list.push(result[i].url);
+        resolve(list);
+      }
+    });
+  });
+}
+
 
 module.exports = {
   handleIncomingCall
 };
+

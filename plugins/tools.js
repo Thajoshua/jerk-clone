@@ -76,10 +76,46 @@ Index({
             host: 'https://translate.google.com',
         });
 
-        await message.client.sendMessage(message.jid, { audio: { url }, mimetype: 'audio/mp4' });
+        await message.client.sendMessage(message.jid, { audio: { url }, mimetype: "audio/mpeg",   ptt: true,});
     } catch (error) {
         console.error('Error in TTS:', error);
         return message.reply("An error occurred while converting text to speech. Please try again later.");
+    }
+});
+
+
+
+
+Index({
+    pattern: 'npm',
+    fromMe: false,
+    desc: 'Search npm packages by name.',
+    category: 'tools',
+}, async (message) => {
+    const userInput = await message.getUserInput();
+    if (!userInput) return await message.reply('Please provide a package name.📦');
+
+    try {
+        const { data } = await axios.get(`https://api.npms.io/v2/search?q=${userInput.trim()}`);
+
+        if (!data.results || data.results.length === 0) {
+            return await message.reply('No npm packages found for the given name.');
+        }
+
+        let txt = data.results.map((v) => {
+            const pkg = v.package;
+            return `
+Name: ${pkg.name}
+Scope: ${pkg.scope}
+Version: ${pkg.version}
+Description: ${pkg.description || 'No description available.'}
+            `;
+        }).join("\n\n");
+
+        return await message.reply(txt);
+    } catch (error) {
+        console.error(error);
+        return await message.reply('An error occurred while searching for npm packages. Please try again later.');
     }
 });
 
@@ -142,60 +178,4 @@ Index({
     const length = parseInt(message.getUserInput(), 10) || 12;
     const password = generatePassword(length, false);
     message.reply(password);
-});
-
-Index({
-    pattern: 'readmore',
-    fromMe: true,
-    desc: 'Creates text with readmore effect',
-    type: 'whatsapp'
-}, async (message) => {
-    const text = message.getUserInput();
-    if (!text) {
-        return await message.reply('Please provide text to add readmore effect.\nExample: .readmore Your text here');
-    }
-
-    try {
-        // Create readmore effect using invisible character
-        const readmoreText = text.replace(/\+/g, '\u200B'.repeat(4001));
-        await message.reply(readmoreText);
-    } catch (error) {
-        console.error('Error in readmore command:', error);
-        await message.reply('Failed to generate readmore text.');
-    }
-});
-
-Index({
-    pattern: 'wame',
-    fromMe: true,
-    desc: 'Generate WhatsApp me link for a user',
-    type: 'whatsapp'
-}, async (message) => {
-    try {
-        let userJid;
-        
-        // Get user JID from different possible sources
-        if (message.quoted) {
-            userJid = message.quoted.participant;
-        } else if (message.mentions && message.mentions.length > 0) {
-            userJid = message.mentions[0];
-        } else {
-            const input = message.getUserInput();
-            if (input) {
-                // If number is provided directly
-                userJid = input.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
-            } else {
-                // Use sender's JID if no input is provided
-                userJid = message.sender;
-            }
-        }
-
-        // Generate WhatsApp me link
-        const wameLink = 'https://wa.me/' + userJid.split('@')[0];
-        
-        await message.reply(`*WhatsApp Me Link*\n${wameLink}`);
-    } catch (error) {
-        console.error('Error in wame command:', error);
-        await message.reply('Failed to generate WhatsApp me link.');
-    }
 });

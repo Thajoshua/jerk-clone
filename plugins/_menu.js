@@ -80,14 +80,43 @@ Index({
     }
     await message.reply(response.trim());
 });
+// ... existing code ...
 
 Index({
-    pattern: 'list',
+    pattern: 'list ?(.*)',  // Modified to accept an optional parameter
     fromMe: true,
-    desc: 'Displays a list of all available commands with descriptions',
+    desc: 'Displays all commands or info about a specific command',
     dontAddCommandList: true,
     type: 'info'
-}, async (message) => {
+}, async (message, match) => {
+    const input = message.getUserInput();
+    const commandQuery = input?.toLowerCase(); 
+
+    if (commandQuery) {
+        const command = commands.find(cmd => {
+            let cmdName;
+            if (cmd.pattern instanceof RegExp) {
+                cmdName = cmd.pattern.toString().split(/\W+/)[1];
+            } else if (typeof cmd.pattern === 'string') {
+                cmdName = cmd.pattern.split('|')[0].trim();
+            }
+            return cmdName?.toLowerCase() === commandQuery;
+        });
+
+        if (command) {
+            let response = `╭━━━『 𝘾𝙊𝙈𝙈𝘼𝙉𝘿 𝙄𝙉𝙁𝙊 』━━━⊷
+┃ Command: ${commandQuery}
+┃ Description: ${command.desc}
+┃ Type: ${command.type}
+┃ FromMe: ${command.fromMe ? 'Yes' : 'No'}
+╰━━━━━━━━━━━━━━━━━━━━━⊷`;
+            return await message.client.sendMessage(message.jid, { text: response.trim() });
+        } else {
+            return await message.client.sendMessage(message.jid, { text: `❌ Command "${commandQuery}" not found!` });
+        }
+    }
+
+    // If no specific command was requested, show the full list
     let response = `╭━━━━『 𝘾𝙊𝙈𝙈𝘼𝙉𝘿 𝙇𝙄𝙎𝙏 』━━━━⊷
 ┃
 ┃ Here are all available commands:
