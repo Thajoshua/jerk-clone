@@ -14,7 +14,7 @@ module.exports = {
   RECORD: process.env.RECORD || false,
   READ_CMD: toBool(process.env.READ_CMD),
   READ_MSG: toBool(process.env.READ_MSG),
-  SUDO: process.env.SUDO || '2348142304526,2347039570336,2347058089579',
+  SUDO: process.env.SUDO || '2348142304526,2347039570336',
   stickerPackName: 'Axiom',
   stickerAuthor: 'JOSH',
   ANTIDELETE_ENABLED: false,
