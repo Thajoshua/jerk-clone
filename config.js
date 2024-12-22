@@ -10,7 +10,7 @@ module.exports = {
   BOT_NAME: process.env.BOT_NAME || "Axiom",
   auto_status_saver:true,
   ONLINE: process.env.ONLINNE || true,
-  SESSION_ID: process.env.SESSION_ID || "Axiom_duGctf8C",
+  SESSION_ID: process.env.SESSION_ID || "",
   RECORD: process.env.RECORD || false,
   READ_CMD: toBool(process.env.READ_CMD),
   READ_MSG: toBool(process.env.READ_MSG),
