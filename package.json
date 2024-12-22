@@ -9,7 +9,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "J&E",
-  "license": "",
+  "license": "mit",
   "dependencies": {
     "@distube/ytdl-core": "^4.13.5",
     "@vitalets/google-translate-api": "^9.2.0",
