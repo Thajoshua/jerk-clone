@@ -743,7 +743,7 @@ Index({
 
 
 Index({
-  pattern: 'creategc(?: (.*))?',
+  pattern: 'creategc',
   fromMe: true,
   desc: 'Create a new group and send the group details',
   type: 'group'
@@ -918,8 +918,7 @@ Index({
     desc: 'Join a group using invite link',
     type: 'group'
 }, async (message, match) => {
-    const input = message.getUserInput();
-    let inviteLink = input || (message.quoted ? message.quoted.text : null);
+    let inviteLink = match || (message.quoted ? message.quoted.text : null);
     if (!inviteLink) {
         return await message.reply('_Please provide a WhatsApp group invite link._');
     }
