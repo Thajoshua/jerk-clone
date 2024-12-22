@@ -82,7 +82,7 @@ Index({
         const isRepoReady = await ensureRepo();
         if (!isRepoReady) {
             await message.react('❌');
-            return await message.reply('Repository configuration error!');
+            return await message.reply('_Repository configuration error!_');
         }
 
         const updateStatus = await checkForUpdates();
@@ -90,7 +90,7 @@ Index({
             setTimeout(async () => {
                 await message.react('✅');
             }, 1000);
-            return await message.reply('Bot is up to date!');
+            return await message.reply('_Bot is up to date!_');
         }
 
         await message.reply(updateStatus.updateText);
@@ -98,7 +98,7 @@ Index({
     } catch (error) {
         await message.react('❌');
         console.error('Update check failed:', error);
-        await message.reply('Error checking for updates: ' + error.message);
+        await message.reply('_Error checking for updates: ' + error.message + '_');
     }
 });
 
@@ -114,7 +114,7 @@ Index({
         const isRepoReady = await ensureRepo();
         if (!isRepoReady) {
             await message.react('❌');
-            return await message.reply('Repository configuration error!');
+            return await message.reply('_Repository configuration error!_');
         }
 
         const updateStatus = await checkForUpdates();
@@ -122,7 +122,7 @@ Index({
             setTimeout(async () => {
                 await message.react('✅');
             }, 1000);
-            return await message.reply('Bot is already up to date!');
+            return await message.reply('_Bot is already up to date!_');
         }
 
         try {
