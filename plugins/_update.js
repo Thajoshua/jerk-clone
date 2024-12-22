@@ -3,51 +3,39 @@ const simpleGit = require('simple-git');
 const exec = require('child_process').exec;
 const fs = require('fs');
 const path = require('path');
+const config = require('../config');
 const git = simpleGit();
 
-// Add this configuration at the top
-const REPO_URL = 'https://github.com/Thajoshua/jerk-clone.git';  // Replace with your repo URL
-const BRANCH = 'main';  // Replace with your default branch
+const REPO_URL = 'https://github.com/Thajoshua/jerk-clone.git';
+const BRANCH = 'main';
 
-// Function to ensure repo is properly configured
 async function ensureRepo() {
     try {
-        // Check if .git directory exists
         const gitDir = path.join(process.cwd(), '.git');
         const isGitRepo = fs.existsSync(gitDir);
 
         if (!isGitRepo) {
-            // Initialize git repository
             await git.init();
             console.log('Initialized new git repository');
             
-            // Add remote origin
             await git.addRemote('origin', REPO_URL);
             console.log('Added remote origin');
             
-            // Fetch all
             await git.fetch('origin');
             console.log('Fetched from origin');
-            
-            // Reset to origin/main
+
             await git.reset(['--hard', `origin/${BRANCH}`]);
             console.log('Reset to origin/' + BRANCH);
         } else {
-            // Check if remote exists
             const remotes = await git.getRemotes();
             const hasOrigin = remotes.some(remote => remote.name === 'origin');
-
             if (!hasOrigin) {
                 await git.addRemote('origin', REPO_URL);
             } else {
-                // Update origin URL if it exists
                 await git.remote(['set-url', 'origin', REPO_URL]);
             }
-
-            // Fetch latest
             await git.fetch('origin', BRANCH);
-        }
-        
+        } 
         return true;
     } catch (error) {
         console.error('Repository setup failed:', error);
@@ -55,27 +43,21 @@ async function ensureRepo() {
     }
 }
 
-// Create a function to check for updates
 async function checkForUpdates() {
     try {
         await git.fetch('origin', BRANCH);
         const current = await git.revparse(['HEAD']);
         const remote = await git.revparse(['origin/' + BRANCH]);
-        
         if (current === remote) {
             return { hasUpdates: false };
         }
-
         const commits = await git.log(['HEAD..origin/' + BRANCH]);
         let updateText = '*Updates available!*\n\nChanges:\n';
-        
         commits.all.forEach(commit => {
             updateText += `\n*${commit.message}*`;
             updateText += `\n└ _${commit.date.split('T')[0]}_\n`;
-        });
-        
-        updateText += '\n*Use .update now to update the bot*';
-        
+        }); 
+        updateText += `\n*Use ${config.HANDLERS[0]}update now to update the bot*`;
         return { hasUpdates: true, updateText };
     } catch (error) {
         throw new Error('Failed to check updates: ' + error.message);
@@ -95,8 +77,7 @@ Index({
     type: 'owner'
 }, async (message) => {
     try {
-        await message.react('🔍');
-        await message.reply('Checking for updates...');
+        await message.reply('_Checking for updates..._');
 
         const isRepoReady = await ensureRepo();
         if (!isRepoReady) {
@@ -128,16 +109,13 @@ Index({
     type: 'owner'
 }, async (message) => {
     try {
-        await message.react('🔄');
-        await message.reply('Updating bot...');
+        await message.reply('_Updating bot..._');
 
         const isRepoReady = await ensureRepo();
         if (!isRepoReady) {
             await message.react('❌');
             return await message.reply('Repository configuration error!');
         }
-
-        // Check if there are actually updates available
 
         const updateStatus = await checkForUpdates();
         if (!updateStatus.hasUpdates) {
@@ -147,9 +125,7 @@ Index({
             return await message.reply('Bot is already up to date!');
         }
 
-        // Add this: Clean up database connection before git operations
         try {
-            // If you have a database connection, close it here
             if (global.db && typeof global.db.close === 'function') {
                 await global.db.close();
             }
@@ -158,10 +134,8 @@ Index({
         }
 
         try {
-            // Try to remove the lock on database.sqlite
             const dbPath = path.join(process.cwd(), 'data/database.sqlite');
             if (fs.existsSync(dbPath)) {
-                // Force close any open handles to the file
                 if (process.platform === 'win32') {
                     await new Promise((resolve) => {
                         exec(`taskkill /F /IM node.exe`, () => resolve());
@@ -171,13 +145,10 @@ Index({
         } catch (err) {
             console.log('Database lock removal warning:', err);
         }
-
-        // Reset any local changes and pull updates
         try {
             await git.reset(['--hard', 'HEAD']);
             const pullResult = await git.pull('origin', BRANCH);
             
-            // Check for package.json changes
             if (pullResult.files.includes('package.json')) {
                 await message.react('📦');
                 await message.reply('Installing new dependencies...');
@@ -195,7 +166,6 @@ Index({
             await message.reply(`Bot updated successfully!\n\n*Restarting bot...*`);
             process.exit(0);
         } catch (gitError) {
-            // If git operations fail, try a more aggressive approach
             await message.react('⚠️');
             await message.reply('Normal update failed, trying forced update...');
             

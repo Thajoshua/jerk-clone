@@ -115,7 +115,7 @@ Index({
         }
     }
 
-    let response = `*Command List*\n\n`;
+    let response = `*Command List*\n\nUse .list <command> to see detailed info about a specific command.\n\n`;
 
     commands.forEach(cmd => {
         if (!cmd.dontAddCommandList) {
