@@ -16,17 +16,13 @@ const path = require('path');
 const pino = require('pino');
 const express = require("express");
 const NodeCache = require("node-cache");
-const app = express();
 const config = require('./config');
 const { Message, commands, numToJid, PREFIX } = require('./lib/index');
-const axios = require('axios');
-const { sequelize, UserSession, checkDatabaseConnection } = require('./database');
+const { UserSession, checkDatabaseConnection, WelcomeSetting, sequelize } = require('./database/database');
 const { handleIncomingCall } = require('./plugins/user');
 const { handleStatus } = require('./plugins/status');
-const { handleGroupMessage } = require('./plugins/activity');
 const { checkForUpdates } = require('./plugins/_update');
-
-const port = 3000;
+const {MakeSession} = require("./lib/session");
 
 const messageStore = new Map();
 global.antideleteEnabled = config.ANTIDELETE_ENABLED;
@@ -42,92 +38,6 @@ function cleanupOldMessages() {
 
 setInterval(cleanupOldMessages, 30 * 60 * 1000);
 
-app.get('/', (req, res) => {
-  res.send(`
-    <html>
-      <head>
-        <title>Bot Status</title>
-        <style>
-          body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
-          }
-          .container {
-            text-align: center;
-          }
-          .loading {
-            font-size: 24px;
-            margin-bottom: 20px;
-          }
-          .loader {
-            border: 16px solid #f3f3f3;
-            border-radius: 50%;
-            border-top: 16px solid #3498db;
-            width: 120px;
-            height: 120px;
-            animation: spin 2s linear infinite;
-          }
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="loading">Bot is up and running!</div>
-          <div class="loader"></div>
-        </div>
-      </body>
-    </html>
-  `);
-});
-
-
-
-/*function cleanAuthFolder() {
-  const authPath = path.join(__dirname, 'auth');
-  fs.readdir(authPath, (err, files) => {
-    if (err) {
-      console.error('Error reading auth directory:', err);
-      return;
-    }
-    files.forEach(file => {
-      if (file !== 'creds.json') {
-        fs.unlink(path.join(authPath, file), err => {
-          if (err) {
-            console.error(`Error deleting file ${file}:`, err);
-          } else {
-            console.log(`Deleted file: ${file}`);
-          }
-        });
-      }
-    });
-  });
-}
-
-function decodeSessionId(encodedSessionId) {
-  return Buffer.from(encodedSessionId, 'base64').toString('utf-8');
-}
-
-function saveDecodedSession(decodedSession) {
-  const authPath = path.join(__dirname, 'auth');
-  if (!fs.existsSync(authPath)) {
-    fs.mkdirSync(authPath, { recursive: true });
-  }
-  fs.writeFileSync(path.join(authPath, 'creds.json'), decodedSession);
-}
-*/
-
-const {
-	MakeSession
-} = require("./lib/session");
-
 const processedSessionId = config.SESSION_ID.replace(/^Axiom_/, '');
 
 if (!fs.existsSync("./auth/creds.json")) {
@@ -136,27 +46,30 @@ if (!fs.existsSync("./auth/creds.json")) {
 );
 }
 
+async function initializeDatabaseAndPlugins() {
+  try {
+    await sequelize.sync();
+    console.log('✓ Database synchronized');
 
-/*function handleSessionDecoding() {
-  if (config.SESSION_ID) {
-    try {
-      const decodedSession = decodeSessionId(config.SESSION_ID);
-      saveDecodedSession(decodedSession);
-      console.log('Session successfully decoded and saved.');
-    } catch (error) {
-      console.error('Error decoding session:', error);
-    }
-  } else {
-    console.log('No SESSION_ID found in config.js');
+    const pluginFolder = path.join(__dirname, 'plugins');
+    const files = fs.readdirSync(pluginFolder);
+
+    console.log("⬇ Installing Plugins...");
+
+    files.forEach(plugin => {
+      if (path.extname(plugin).toLowerCase() === '.js') {
+        require('./plugins/' + plugin);
+      }
+    });
+    console.log('✓ Plugins loaded successfully');
+  } catch (error) {
+    console.error('Failed to initialize:', error);
+    process.exit(1);
   }
 }
-*/
 
 (async () => {
   await checkDatabaseConnection();
-
-
- /* handleSessionDecoding();*/
 
  const saveUserSession = async (jid, sessionData) => {
     try {
@@ -188,12 +101,7 @@ if (!fs.existsSync("./auth/creds.json")) {
         (loadMessage(key.id) || {}).message || { conversation: null },
     });
 
-
-    fs.readdirSync('./plugins').forEach(plugin => {
-      if (path.extname(plugin).toLowerCase() == '.js') {
-        require('./plugins/' + plugin);
-      }
-    });
+    await initializeDatabaseAndPlugins();
 
     client.ev.on('connection.update', async (node) => {
       const { connection, lastDisconnect } = node;
@@ -251,8 +159,6 @@ if (!fs.existsSync("./auth/creds.json")) {
       await saveUserSession(client.user.id, creds);
     });
 
-    
-    const { WelcomeSetting } = require('./database');
 
     client.ev.on('group-participants.update', async (notification) => {
       if (notification.action === 'add') {
@@ -290,22 +196,10 @@ if (!fs.existsSync("./auth/creds.json")) {
         const message = new Message(client, msg);
         const messageType = getContentType(msg.message);
 
-        // Handle status broadcast messages
         if (msg.key && msg.key.remoteJid === 'status@broadcast') {
           await handleStatus(msg, client);
-          continue; // Skip further processing for status messages
+          continue; 
         }
-
-        // Handle group activity tracking
-        if (msg.message && msg.key.remoteJid.endsWith('@g.us')) {
-          await handleGroupMessage({
-            isGroup: true,
-            jid: msg.key.remoteJid,
-            sender: msg.key.participant || msg.key.remoteJid
-          });
-        }
-
-        // Auto type/record/online presence updates
         if (config.AUTOTYPE == true) {
           await client.sendPresenceUpdate('composing', message.jid);
           await delay(3000);
@@ -322,12 +216,10 @@ if (!fs.existsSync("./auth/creds.json")) {
           await client.sendPresenceUpdate('available', message.jid);
         }
 
-        // Message store handling
         if (messageType !== 'protocolMessage') {
           messageStore.set(msg.key.id, msg);
         }
 
-        // Anti-delete handling
         if (global.antideleteEnabled && messageType === 'protocolMessage' && msg.message.protocolMessage.type === 0) {
           const chatJid = msg.key.remoteJid;
           const deletedMessageId = msg.message.protocolMessage.key.id;
@@ -508,9 +400,6 @@ Content: ${message.text || message.type || 'No content'}`);
   };
 
   connectToWhatsApp();
- /* cleanAuthFolder();*/
-
-  app.listen(port, () => console.log(`Server listening on port http://localhost:${port}!`));
 })();
 
 module.exports = {

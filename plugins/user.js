@@ -7,7 +7,7 @@ const os = require('os');
 const axios = require('axios');
 const { numToJid } = require('../lib/index');
 const { DataTypes } = require('sequelize');
-const { sequelize, AliveSettings } = require('../database');
+const { sequelize, AliveSettings } = require('../database/database');
 
 // Helper function for uptime
 function formatUptime() {

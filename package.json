@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "pm2 start index.js --deep-monitoring --attach --name Axiom-md",
+    "restart": "pm2 restart Axiom-md",
     "stop": "pm2 stop Axiom-md",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

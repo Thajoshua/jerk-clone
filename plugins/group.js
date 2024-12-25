@@ -5,7 +5,7 @@ const schedule = require('node-schedule');
 const moment = require('moment-timezone');
 const fetch = require('node-fetch');
 const fs = require('fs');
-const { WelcomeSetting } = require('../database');
+const { WelcomeSetting } = require('../database/database');
 const config = require('../config');
 
 const welcomeDB = new Map();

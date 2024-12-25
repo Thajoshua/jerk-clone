@@ -2,7 +2,7 @@ const { Sequelize, DataTypes } = require('sequelize');
 const path = require('path');
 const fs = require('fs');
 
-const dbDirectory = path.resolve(__dirname, 'data');
+const dbDirectory = path.resolve(__dirname, '../data');
 if (!fs.existsSync(dbDirectory)) {
   fs.mkdirSync(dbDirectory, { recursive: true });
 }
@@ -66,10 +66,28 @@ const WelcomeSetting = sequelize.define('WelcomeSetting', {
   }
 });
 
+const Plugin = sequelize.define('Plugin', {
+  name: {
+    type: DataTypes.STRING,
+    unique: true,
+    allowNull: false
+  },
+  code: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  path: {
+    type: DataTypes.STRING,
+    allowNull: false
+  }
+}, {
+  timestamps: true
+});
+
 const checkDatabaseConnection = async () => {
   try {
     await sequelize.authenticate();
-    console.log('Connection to AXIOMDB has been established successfully.');
+    // console.log('Connection to AXIOMDB has been established successfully.');
     await sequelize.sync();
   } catch (error) {
     console.error('Unable to connect to the database:', error);
@@ -109,4 +127,49 @@ const clearNotifications = async (userId) => {
   }
 };
 
-module.exports = { sequelize, UserSession, Notification, checkDatabaseConnection, storeNotification, WelcomeSetting, getNotifications, clearNotifications };
+const PLUGINS_FOLDER = path.join(__dirname, '../plugins/Axiom');
+
+const ensurePluginDirectory = () => {
+  if (!fs.existsSync(PLUGINS_FOLDER)) {
+    fs.mkdirSync(PLUGINS_FOLDER, { recursive: true });
+  }
+};
+
+const savePlugin = async (pluginName, code) => {
+  ensurePluginDirectory();
+  const pluginPath = path.join(PLUGINS_FOLDER, `${pluginName}.js`);
+  
+  try {
+    await fs.promises.writeFile(pluginPath, code, 'utf8');
+    await Plugin.upsert({
+      name: pluginName,
+      code: code,
+      path: pluginPath
+    });
+    return pluginPath;
+  } catch (error) {
+    throw error;
+  }
+};
+
+const getInstalledPlugins = async () => {
+  ensurePluginDirectory();
+  return fs.readdirSync(PLUGINS_FOLDER).filter(file => file.endsWith('.js'));
+};
+
+const deletePlugin = async (pluginName) => {
+  const pluginPath = path.join(PLUGINS_FOLDER, `${pluginName}.js`);
+  
+  if (!fs.existsSync(pluginPath)) {
+    throw new Error('Plugin not found');
+  }
+
+  try {
+    await fs.promises.unlink(pluginPath);
+    await Plugin.destroy({ where: { name: pluginName } });
+  } catch (error) {
+    throw error;
+  }
+};
+
+module.exports = { sequelize, UserSession, Notification, checkDatabaseConnection, storeNotification, WelcomeSetting, getNotifications, clearNotifications, Plugin, savePlugin, getInstalledPlugins, deletePlugin, PLUGINS_FOLDER };

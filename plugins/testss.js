@@ -1,8 +1,5 @@
-const fs = require('fs').promises;
-const path = require('path');
 const config = require('../config.js');
 const { Index } = require('../lib/');
-const { WelcomeSetting } = require('../database');
 const fetch = require('node-fetch');
 
 
