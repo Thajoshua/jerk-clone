@@ -3,6 +3,7 @@ const { Index, mode } = require('../lib/');
 const { TelegraPh } = require('../lib/utils');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const axios = require('axios');
 const { numToJid } = require('../lib/index');
 const { DataTypes } = require('sequelize');
@@ -577,8 +578,54 @@ async function gimage(query, amount = 5) {
   });
 }
 
+Index({
+  pattern: 'vv',
+  fromMe: true,
+  desc: 'Get media from view once message',
+  type: 'utility'
+}, async (message) => {
+  if (!message.quoted) {
+    return await message.reply('Please reply to a view once message');
+  }
+
+  if (message.quotedType !== 'viewOnceMessage' && message.quotedType !== 'viewOnceMessageV2') {
+    return await message.reply('This is not a view once message');
+  }
+
+  try {
+    let viewOnceMsg = message.quoted.message.viewOnceMessage || message.quoted.message.viewOnceMessageV2;
+    // console.log(`View Once Message: ${JSON.stringify(viewOnceMsg)}`);
+    if (viewOnceMsg.message) {
+      if (viewOnceMsg.message.imageMessage) {
+        const imageMessage = viewOnceMsg.message.imageMessage;
+        const caption = imageMessage.caption || '';
+        const filepath = await message.downloadAndSaveMediaMessage(imageMessage, path.join(os.tmpdir(), 'image'));
+        
+        await message.client.sendMessage(message.jid, {
+          image: { url: filepath },
+          caption: caption
+        });
+      } 
+      else if (viewOnceMsg.message.videoMessage) {
+        const videoMessage = viewOnceMsg.message.videoMessage;
+        const caption = videoMessage.caption || '';
+        const filepath = await message.downloadAndSaveMediaMessage(videoMessage, path.join(os.tmpdir(), 'video'));
+        
+        await message.client.sendMessage(message.jid, {
+          video: { url: filepath },
+          caption: caption
+        });
+      }
+      else {
+        return await message.reply('No media found in view once message');
+      }
+    }
+  } catch (error) {
+    console.error('Error handling view once message:', error);
+    await message.reply('Failed to handle view once message');
+  }
+});
 
 module.exports = {
   handleIncomingCall
 };
-
