@@ -16,16 +16,11 @@ const cheerio = require('cheerio');
 const FormData = require('form-data');
 const Jimp = require('jimp');
 
-// Helper function to convert WebP to MP4
 async function convertWebpToMp4(webpBuffer) {
     try {
-        // Create temporary files
         const tempWebpPath = path.join(__dirname, `../temp/${Date.now()}.webp`);
         const tempMp4Path = path.join(__dirname, `../temp/${Date.now()}.mp4`);
-
-        // Write the WebP buffer to a temporary file
         await fs.promises.writeFile(tempWebpPath, webpBuffer);
-  // Convert WebP to MP4 using ffmpeg
         await execAsync(`ffmpeg -i ${tempWebpPath} -vf "format=yuv420p" -movflags +faststart ${tempMp4Path}`);
         const mp4Buffer = await fs.promises.readFile(tempMp4Path);
         await fs.promises.unlink(tempWebpPath);
@@ -249,8 +244,8 @@ Index({
         const [pack, author] = (message.getUserInput() || '').split(';');
         const buffer = await message.downloadMediaMessage();
         const sticker = new Sticker(buffer, {
-            pack: pack || 'AXIOM',
-            author: author || 'AXIOM',
+            pack: pack  || 'AXIOM',
+            author: author || 'MASTER-J',
             type: StickerTypes.FULL,
             categories: ['🤖', '👍'],
             quality: 50,
@@ -279,7 +274,7 @@ Index({
         const buffer = await message.downloadMediaMessage();
         const sticker = new Sticker(buffer, {
             pack: pack || 'AXIOM',
-            author: author || 'AXIOM',
+            author: author || 'MASTER-J',
             type: StickerTypes.FULL,
             categories: ['🤖', '👍'],
             quality: 50,
@@ -369,7 +364,7 @@ Index({
 Index({
     pattern: 'textsticker ?(.*)',
     fromMe: true,
-    desc: 'Create a sticker from text. Usage: .textsticker text;pack;author',
+    desc: 'Create a sticker from text.',
     type: 'media'
 }, async (message, match) => {
     try {
@@ -389,7 +384,7 @@ Index({
         const buffer = await image.getBufferAsync(Jimp.MIME_PNG);
         const sticker = new Sticker(buffer, {
             pack: pack || 'AXIOM',
-            author: author || 'AXIOM',
+            author: author || 'MASTER-J',
             type: StickerTypes.FULL,
             categories: ['🤖', '👍'],
             quality: 50,

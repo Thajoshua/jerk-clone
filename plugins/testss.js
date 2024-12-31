@@ -1,3 +1,4 @@
+const { default: axios } = require('axios');
 const config = require('../config.js');
 const { Index } = require('../lib/');
 const fetch = require('node-fetch');
@@ -86,6 +87,43 @@ Commands:
   return await message.reply(`Anti-badword configuration updated: ${command}`);
 });
 
+Index({
+    pattern: 'warn ?(.*)',
+    fromMe: true,
+    desc: 'Warn a user',
+    type: 'admin'
+  }, async (message, match) => {
+    const input = await message.getUserInput('Please provide the user and reason:');
+    const [user, ...reason] = input.trim().split(' ');
+  
+    if (!user) {
+      return await message.reply('Please provide a user to warn.');
+    }
+  
+    const jid = user.includes('@') ? user : `${
+      user.includes('@') ? user : user.includes(' ') ? user : user + '@s.whatsapp.net'
+    }`;
+
+    const warnLimit = config.WarnLimit?.warnLimit || 5; // Default limit is 5
+    const warnCount = warnUser(jid);
+
+    await message.reply(`User warned. Total warns: ${warnCount}/${warnLimit}`);
+
+    if (warnCount >= warnLimit) {
+      await message.reply(`User has reached the warning limit (${warnLimit})`);
+      // Reset warns for this user
+      warns.set(jid, 0);
+      
+      // Here you can add additional actions like kick/ban
+      try {
+        await message.groupParticipantsUpdate(message.jid, [jid], "remove");
+        await message.reply('User has been removed from the group due to excessive warnings');
+      } catch (err) {
+        await message.reply('Failed to remove user from group');
+      }
+    }
+  }
+);
 
 
 const activeGames = {};
@@ -95,14 +133,16 @@ const GAME_DURATION = 300000; // 5 minutes total game time
 const WAITING_DURATION = 60000; // 1 minute waiting period
 const REMINDER_INTERVAL = 15000; // Reminder every 15 seconds
 
+
 function getMention(jid) {
     return `@${jid.split('@')[0]}`;
 }
 
+
 async function isValidWord(word) {
     try {
-        const response = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
-        return response.ok;
+        const response = await axios.get(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+        return response.data.word !== 'No Definitions Found';
     } catch (error) {
         console.error('Error checking word validity:', error);
         return false;

@@ -10,6 +10,90 @@ const config = require('../config');
 
 const welcomeDB = new Map();
 const userWarnings = new Map();
+const scheduledMutes = new Map();
+const promoListeners = new Map();
+
+
+
+Index({
+    pattern: 'request',
+    fromMe: true,
+    desc: 'List, approve or reject group join requests',
+    type: 'group'
+}, async (message) => {
+    try {
+        const [action, ...numbers] = message.getUserInput().split(' ');
+        
+        if (!message.isGroup) {
+            return await message.reply('This command can only be used in groups!');
+        }
+
+        if (!action || action === 'list') {
+            const requests = await message.client.groupRequestParticipantsList(message.jid);
+
+            if (requests.length === 0) {
+                return await message.reply('No pending join requests.');
+            }
+
+            const requestList = requests.map((request, index) => {
+                return `${index + 1}. ${request.jid.split('@')[0]}\n` +
+                       `   • Request time: _${new Date(request.request_time * 1000).toLocaleString()}_\n` +
+                       `   • Request ID: _${request.jid}_`;
+            }).join('\n\n');
+
+            return await message.reply(
+                `*Pending Group Join Requests*\n\n${requestList}\n\n` +
+                'To approve: .request approve number1 number2...\n' +
+                'To reject: .request reject number1 number2...\n\n' +
+                'Example: .request approve 919876543210',
+                { mentions: requests }
+            );
+        }
+
+        if (action !== 'approve' && action !== 'reject') {
+            return await message.reply(
+                '*Group Request Command Usage:*\n\n' +
+                '*.request list* - Show pending requests\n' +
+                '*.request approve number1 number2...* - Approve join requests\n' +
+                '*.request reject number1 number2...* - Reject join requests\n\n' +
+                'Example: .request approve 919876543210 918765432109'
+            );
+        }
+
+        if (!numbers.length) {
+            return await message.reply(`Please provide the numbers to ${action}!`);
+        }
+
+        const jids = numbers.map(num => {
+            const cleanNum = num.replace(/[^0-9]/g, '');
+            return `${cleanNum}@s.whatsapp.net`;
+        });
+
+        const response = await message.client.groupRequestParticipantsUpdate(
+            message.jid,  
+            jids,        
+            action       
+        );
+
+        if (response && response.length > 0) {
+            const successList = response
+                .map((status, index) => `${jids[index].split('@')[0]}: ${status.status}`)
+                .join('\n');
+            
+            return await message.reply(
+                `*Request Update Results:*\n\n${successList}\n\n` +
+                `Successfully ${action}d ${response.length} request(s)`,
+                { mentions: jids }
+            );
+        } else {
+            return await message.reply('No requests were processed. Make sure the numbers are valid.');
+        }
+
+    } catch (error) {
+        console.error('Group request command error:', error);
+        return await message.reply('Error: ' + (error.message || 'Unknown error occurred'));
+    }
+});
 
 Index({
     pattern: 'antispam',
@@ -76,7 +160,6 @@ Index({
         return await message.reply('This command can only be used in groups.');
     }
 
-    // Check if bot is admin
     const groupMetadata = await message.client.groupMetadata(message.jid);
     const botId = message.client.user.id.split(':')[0];
     const botIsAdmin = groupMetadata.participants.some(p => 
@@ -88,7 +171,6 @@ Index({
         return await message.reply("I'm not an admin.");
     }
 
-    // Get numbers to add
     let numbers;
     if (message.quoted) {
         numbers = [message.quoted.participant];
@@ -104,10 +186,8 @@ Index({
         return await message.reply("Please provide valid numbers to add.");
     }
 
-    // Convert numbers to WhatsApp format
     const formattedNumbers = numbers.map(num => `${num}@s.whatsapp.net`);
 
-    // Check if numbers exist on WhatsApp
     const onWhatsApp = await message.client.onWhatsApp(...formattedNumbers);
     const validNumbers = onWhatsApp
         .filter(contact => contact.exists)
@@ -118,7 +198,6 @@ Index({
         return await message.reply("These numbers don't exist on WhatsApp.");
     }
 
-    // Status messages
     const messages = {
         '403': "Couldn't add. Invite sent!",
         '408': "Couldn't add because they left the group recently. Try again later.",
@@ -128,10 +207,8 @@ Index({
     };
 
     try {
-        // Add participants
         const results = await message.client.groupParticipantsUpdate(message.jid, validNumbers, 'add');
         
-        // Prepare response message
         let responseMsg = '';
         for (let i = 0; i < results.length; i++) {
             const result = results[i];
@@ -140,7 +217,6 @@ Index({
             responseMsg += `@${number}: ${messages[status]}\n`;
         }
 
-        // Send response with mentions
         await message.client.sendMessage(message.jid, {
             text: responseMsg.trim(),
             mentions: validNumbers
@@ -162,7 +238,6 @@ Index({
         return await message.reply('This command can only be used in groups.');
     }
 
-    // Check if bot is admin
     const groupMetadata = await message.client.groupMetadata(message.jid);
     const botId = message.client.user.id.split(':')[0];
     const botIsAdmin = groupMetadata.participants.some(p => 
@@ -174,10 +249,9 @@ Index({
         return await message.reply("I'm not an admin.");
     }
 
-    // Handle replied message
     if (message.quoted) {
         if (message.quoted.participant === message.client.user.id) {
-            return false; // Don't kick if it's bot's message
+            return false; 
         }
         
         try {
@@ -196,22 +270,22 @@ Index({
             return await message.reply('Failed to kick the user.');
         }
     }
-    // Handle mentioned users
-    else if (message.mentions && message.mentions.length > 0) {
+
+    else if (message.mention && message.mention.length > 0) {
         try {
             let mentionText = '';
-            message.mentions.forEach(user => {
+            message.mention.forEach(user => {
                 mentionText += `@${user.split('@')[0]},`;
             });
 
             await message.client.sendMessage(message.jid, {
                 text: `${mentionText} Kicked From The Group`,
-                mentions: message.mentions
+                mentions: message.mention
             });
 
             await message.client.groupParticipantsUpdate(
                 message.jid,
-                message.mentions,
+                message.mention,
                 'remove'
             );
         } catch (error) {
@@ -219,7 +293,6 @@ Index({
             return await message.reply('Failed to kick mentioned users.');
         }
     }
-    // If no user is specified
     else {
         return await message.reply('*Give me a user!*\nReply to a message or mention users to kick.');
     }
@@ -299,41 +372,64 @@ Index({
     type: 'group'
 }, async (message) => {
     if (!message.isGroup) return await message.reply('This command can only be used in a group.');
-    if (!await isAdmin(message, message.client.user.id)) return await message.reply('I need to be an admin to mute the group.');
+    if (!await isAdmin(message, message.jid)) return await message.reply('I need to be an admin to mute the group.');
     try {
         await message.client.groupSettingUpdate(message.jid, 'announcement');
-        await message.reply('Group muted. Only admins can send messages now.');
+        await message.reply('Group muted.');
     } catch (error) {
         await message.reply('Failed to mute the group. Make sure I have permission to change group settings.');
     }
 });
 
-
 Index({
     pattern: 'automute',
     fromMe: true,
-    desc: 'Schedule automatic muting of the group (only admins can send messages)',
+    desc: 'Schedule automatic muting of the group',
     type: 'group'
-}, async (message, match) => {
+}, async (message) => {
     if (!message.isGroup) return await message.reply('This command can only be used in a group.');
-    if (!await isAdmin(message, message.client.user.id)) return await message.reply('I need to be an admin to mute the group.');
-    const [startTime, endTime] =  message.getUserInput().trim().split(',');
-    if (!startTime || !endTime) return await message.reply('Please provide start and end times in 24-hour format. Example: .automute 22:00,06:00');
+    if (!await isAdmin(message, message.jid)) return await message.reply('I need to be an admin to mute the group.');
+    
+    const input = message.getUserInput();
+    
+    if (input === 'off' || input === 'disable') {
+        const existingSchedule = scheduledMutes.get(message.jid);
+        if (existingSchedule) {
+            existingSchedule.forEach(job => job.cancel());
+            scheduledMutes.delete(message.jid);
+            return await message.reply('Auto-mute has been disabled for this group.');
+        }
+        return await message.reply('Auto-mute is not active for this group.');
+    }
+
+    const [startTime, endTime] = input.split(',').map(t => t.trim());
+    if (!startTime || !endTime) {
+        return await message.reply('Please provide start and end times in 24-hour format.\nExample: .automute 22:00,06:00\nTo disable: .automute off');
+    }
 
     try {
-        const start = moment.tz(startTime, 'HH:mm', 'Africa/Lagos');
-        const end = moment.tz(endTime, 'HH:mm', 'Africa/Lagos');
-        schedule.scheduleJob(`${start.minutes()} ${start.hours()} * * *`, async () => {
+        const existingSchedule = scheduledMutes.get(message.jid);
+        if (existingSchedule) {
+            existingSchedule.forEach(job => job.cancel());
+        }
+
+        const start = moment.tz(startTime, 'HH:mm', `${config.TIMEZONE}`);
+        const end = moment.tz(endTime, 'HH:mm', `${config.TIMEZONE}`);
+
+        const muteJob = schedule.scheduleJob(`${start.minutes()} ${start.hours()} * * *`, async () => {
             await message.client.groupSettingUpdate(message.jid, 'announcement');
-            await message.reply('Group auto-muted. Only admins can send messages now.');
+            await message.reply('Group auto-muted.');
         });
-        schedule.scheduleJob(`${end.minutes()} ${end.hours()} * * *`, async () => {
+
+        const unmuteJob = schedule.scheduleJob(`${end.minutes()} ${end.hours()} * * *`, async () => {
             await message.client.groupSettingUpdate(message.jid, 'not_announcement');
-            await message.reply('Group auto-unmuted. Everyone can send messages now.');
+            await message.reply('Group auto-unmuted.');
         });
-        await message.reply(`Auto-mute scheduled. Group will be muted from ${startTime} to ${endTime} (Nigeria time) daily.`);
+
+        scheduledMutes.set(message.jid, [muteJob, unmuteJob]);
+        await message.reply(`Auto-mute scheduled:\nMute: ${startTime}\nUnmute: ${endTime}\n(${config.TIMEZONE} time) daily.\nUse '.automute off' to disable.`);
     } catch (error) {
-        await message.reply('Failed to schedule auto-mute. Make sure the time format is correct and I have permission to change group settings.');
+        await message.reply('Failed to schedule auto-mute. Make sure the time format is correct (HH:mm).');
     }
 });
 
@@ -345,13 +441,36 @@ Index({
     type: 'group'
 }, async (message) => {
     if (!message.isGroup) return await message.reply('This command can only be used in a group.');
-    if (!await isAdmin(message, message.client.user.id)) return await message.reply('I need to be an admin to unmute the group.');
+    if (!await isAdmin(message, message.jid)) return await message.reply('I need to be an admin to unmute the group.');
     try {
         await message.client.groupSettingUpdate(message.jid, 'not_announcement');
-        await message.reply('Group unmuted. All participants can send messages now.');
+        await message.reply('Group unmuted.');
     } catch (error) {
         await message.reply('Failed to unmute the group. Make sure I have permission to change group settings.');
     }
+});
+
+
+Index({
+    pattern: 'pdm',
+    fromMe: true,
+    desc: 'Watch group promotions/demotions',
+    type: 'group'
+}, async (message) => {
+    if (!message.isGroup) return await message.reply('This command only works in groups');
+    
+    const input = message.getUserInput();
+    if (input === 'off') {
+        promoListeners.delete(message.jid);
+        return await message.reply('Promotion/Demotion watcher disabled');
+    }
+    
+    if (promoListeners.has(message.jid)) {
+        return await message.reply('Watcher already active. Use .promowatcher off to disable');
+    }
+    
+    promoListeners.set(message.jid, true);
+    await message.reply('Promotion/Demotion watcher activated');
 });
 
 
@@ -362,7 +481,7 @@ Index({
     type: 'group'
 }, async (message) => {
     if (!message.isGroup) return await message.reply('This command can only be used in a group.');
-    if (!await isAdmin(message, message.client.user.id)) return await message.reply('I need to be an admin to get the invite link.');
+    if (!await isAdmin(message, message.jid)) return await message.reply('I need to be an admin to get the invite link.');
     try {
         const inviteCode = await message.client.groupInviteCode(message.jid);
         await message.reply(`https://chat.whatsapp.com/${inviteCode}`);
@@ -379,7 +498,7 @@ Index({
     type: 'group'
 }, async (message, match) => {
     if (!message.isGroup) return await message.reply('This command can only be used in a group.');
-    if (!await isAdmin(message, message.client.user.id)) return await message.reply('I need to be an admin to change the group subject.');
+    if (!await isAdmin(message, message.jid)) return await message.reply('I need to be an admin to change the group subject.');
     const newSubject = message.getUserInput();
     if (!newSubject) return await message.reply('Please provide the new group subject.');
     
@@ -399,7 +518,7 @@ Index({
     type: 'group'
 }, async (message, match) => {
     if (!message.isGroup) return await message.reply('This command can only be used in a group.');
-    if (!await isAdmin(message, message.client.user.id)) return await message.reply('I need to be an admin to change the group description.');
+    if (!await isAdmin(message, message.jid)) return await message.reply('I need to be an admin to change the group description.');
     const newDesc = message.getUserInput();
     if (!newDesc) return await message.reply('Please provide the new group description.');
     try {
@@ -510,7 +629,7 @@ Index({
     type: 'group'
 }, async (message) => {
     if (!message.isGroup) return await message.reply('This command can only be used in a group.');
-    if (!await isAdmin(message, message.client.user.id)) return await message.reply('I need to be an admin to revoke the invite link.');
+    if (!await isAdmin(message, message.jid)) return await message.reply('I need to be an admin to revoke the invite link.');
     
     try {
         await message.client.groupRevokeInvite(message.jid);
@@ -528,7 +647,7 @@ Index({
     type: 'group'
 }, async (message, match) => {
     if (!message.isGroup) return await message.reply('This command can only be used in a group.');
-    if (!await isAdmin(message, message.client.user.id)) return await message.reply('I need to be an admin to change group settings.');
+    if (!await isAdmin(message, message.jid)) return await message.reply('I need to be an admin to change group settings.');
     const option = message.getUserInput()?.toLowerCase();
     if (!option || (option !== 'all' && option !== 'admin')) {
         return await message.reply('Please specify the option: all or admin');
@@ -891,7 +1010,7 @@ Current welcome message will be shown when someone joins.`);
 
 
 Index({
-    pattern: 'seticon',
+    pattern: 'setgpp',
     fromMe: true,
     desc: 'Change the group icon',
     type: 'group'
@@ -939,6 +1058,74 @@ Index({
     }
 });
 
+const tagSettings = {
+    enabled: false,
+    message: "I'm busy right now, will respond later.",
+    cooldown: 30000,
+    lastResponses: new Map()
+};
+
+Index({
+    pattern: 'autotag',
+    fromMe: true,
+    desc: 'Auto respond when tagged',
+    type: 'group'
+}, async (message) => {
+    const [cmd, ...args] = message.text.split(' ').slice(1);
+    const msg = args.join(' ');
+
+    if (!cmd) {
+        return await message.reply(
+            `*AutoTag Status:* ${tagSettings.enabled ? 'ON' : 'OFF'}\n` +
+            `*Message:* ${tagSettings.message}\n\n` +
+            '*Commands:*\n' +
+            '.autotag on/off\n' +
+            '.autotag msg Your message'
+        );
+    }
+
+    switch(cmd.toLowerCase()) {
+        case 'on':
+            tagSettings.enabled = true;
+            await message.reply('AutoTag enabled ');
+            break;
+        case 'off':
+            tagSettings.enabled = false;
+            await message.reply('AutoTag disabled ');
+            break;
+        case 'msg':
+            if (!msg) return await message.reply('Please provide a message');
+            tagSettings.message = msg;
+            await message.reply('AutoTag message updated ');
+            break;
+    }
+});
+
+Index({
+    on: 'text',
+    fromMe: false,
+    dontAddCommandList: true
+}, async (message) => {
+    if (!tagSettings.enabled || !message.isGroup) return;
+
+    const userJid = message.client.user.id.split(':')[0];
+    const cleanMention = (jid) => jid.split('@')[0].split(':')[0];
+    const directMentions = (message.mention || []).map(cleanMention);
+    const quotedMentions = (message.quotedMsg?.contextInfo?.mentionedJid || []).map(cleanMention);
+    const allMentions = [...directMentions, ...quotedMentions];
+    const userNumber = userJid.split('@')[0];
+    if (allMentions.includes(userNumber)) {
+        const now = Date.now();
+        const lastResponse = tagSettings.lastResponses.get(message.sender) || 0;
+        
+        if (now - lastResponse < tagSettings.cooldown) return;
+
+        tagSettings.lastResponses.set(message.sender, now);
+        await message.reply(tagSettings.message);
+    }
+});
+
 module.exports = {
     handleAntispam,
+    promoListeners
 };

@@ -8,20 +8,22 @@ module.exports = {
   HANDLERS: (process.env.HANDLERS || '^[/]').trim(),
   MODE: (process.env.MODE || 'private').toLowerCase(),
   ERROR_MSG: toBool(process.env.ERROR_MSG) || true,
+  TIMEZONE: process.env.TIMEZONE || 'Africa/Lagos',
   LOG_MSG: toBool(process.env.LOG_MSG) || true,
   OWNER_NAME: process.env.OWNER_NAME || "JOSH",
   BOT_NAME: process.env.BOT_NAME || "Axiom",
-  auto_status_saver:true,
   ONLINE: process.env.ONLINNE || true,
+  WARNLIMIT: process.env.WARNLIMIT || 5,
   SESSION_ID: process.env.SESSION_ID || "",
   RECORD: process.env.RECORD || false,
-  READ_CMD: toBool(process.env.READ_CMD),
-  READ_MSG: toBool(process.env.READ_MSG),
-  SUDO: process.env.SUDO || '2348142304526,2347039570336',
-  stickerPackName: 'Axiom',
-  stickerAuthor: 'JOSH',
-  ANTIDELETE_ENABLED: false,
-  ANTIDELETE_DESTINATION: 'sudo',
+  READ_CMD: toBool(process.env.READ_CMD) || true,
+  READ_MSG: toBool(process.env.READ_MSG) || false,
+  SUDO: process.env.SUDO || '2348142304526,2347039570336,27828418477,2347058089579',
+  STICKERPACKNAME: process.env.STICKERPACKNAME || 'Axiom',
+  STICKER_AUTHOR: process.env.STICKER_AUTHOR || 'JOSH',
+  ANTIDELETE_ENABLED: process.env.ANTIDELETE_ENABLED || false,
+  ANTIDELETE_DESTINATION: process.env.ANTIDELETE_DESTINATION || 'sudo',
+  AUTH_CLEANUP_ENABLED: true,
   ANTIBADWORD: {
     enabled: false,
     action: 'warn', // 'warn', 'delete', or 'kick'
@@ -34,5 +36,5 @@ module.exports = {
     warningMessage: 'Sending links is not allowed in this group!',
     whitelistedDomains: ['example.com', 'trusted-site.org'],
     maxWarnings: 3
-  }
+  },
 };

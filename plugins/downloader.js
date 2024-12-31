@@ -1,6 +1,7 @@
 const { Index} = require('../lib/');
 const fg = require('api-dylux');
 const axios = require('axios');
+const { index, log } = require('mathjs');
 
 Index({
   pattern: 'yta',
@@ -53,49 +54,85 @@ Index({
 
 
 Index({
-  pattern: 'tiktok', 
+  pattern: 'tikvideo', 
   fromMe: true,
   desc: 'Download TikTok video using the link provided.',
   type: 'download'
 }, async (message, match) => {
-  let link = message.getUserInput();
-  if (!link) return await message.reply("Please provide a TikTok video link.\n\nExample: .tikt https://vm.tiktok.com/xxxxx");
+  const link = message.getUserInput();
+
+  if (!link) {
+    return await message.reply('Please provide a TikTok video link.');
+  }
 
   try {
-    const processingReaction = await message.react('⏳');
-    
-    const data = await fg.tiktok(link);
-    if (!data || !data.result || !data.result.play) {
-      await message.react('❌');
-      await message.reply(`Failed to fetch video information.\n\nResponse:\n${JSON.stringify(data, null, 2)}`);
-      setTimeout(async () => {
-        await message.react('');
-      }, 3000);
-      return;
-    }
+    const url = `https://popular-anastassia-dolnard285-511c3281.koyeb.app/Tiktok?url=${encodeURIComponent(link)}`;
+    const response = await axios.get(url);
+  
+    const videoData = response.data.result.data;
+    const videoUrl = videoData.wmplay;
 
-    await message.react('📥');
-    await message.reply(`Downloading ${data.result.title}...`);
+    const caption = `${videoData.title}`
 
-    await message.client.sendMessage(message.jid, {
-      video: { url: data.result.play },
-      caption: `Title: ${data.result.title}\n\n> Powered by Axiom-Md,`,
-      mimetype: "video/mp4",
-      fileName: `${data.result.title || 'TikTok Video AXIOM'}.mp4`
+    await message.reply(`Downloading video of \n\n ${videoData.title}`);
+    await message.sendMedia({
+      url: videoUrl,
+      mimetype: 'video/mp4',
+      caption: caption,
+      contextInfo: {
+        externalAdReply: {
+          title: videoData.title,
+          body: `Creator: ${response.data.creator}`,
+          renderLargerThumbnail: true,
+          thumbnailUrl: videoData.cover,
+          mediaType: 1,
+          mediaUrl: videoData.cover,
+        }
+      }
     });
-
-    await message.react('✅');
-    setTimeout(async () => {
-      await message.react('');
-    }, 3000);
-
   } catch (error) {
-    await message.react('❌');
-    await message.reply(`Error occurred:\n\n${error.message}`);
+    await message.reply(error.message);
   }
 });
 
+Index({
+  pattern: 'tikaudio', 
+  fromMe: true,
+  desc: 'Download TikTok audio using the link provided.',
+  type: 'download'
+}, async (message, match) => {
+  const link = message.getUserInput();
 
+  if (!link) {
+    return await message.reply('Please provide a TikTok video link.');
+  }
+
+  try {
+    const url = `https://popular-anastassia-dolnard285-511c3281.koyeb.app/Tiktok?url=${encodeURIComponent(link)}`;
+    const response = await axios.get(url);
+  
+    const videoData = response.data.result.data;
+    const audioUrl = videoData.music;
+
+    await message.reply(`Downloading audio of \n\n ${videoData.title}`);
+    await message.sendMedia({
+      url: audioUrl,
+      mimetype: 'audio/mpeg',
+      contextInfo: {
+        externalAdReply: {
+          title: videoData.title,
+          body: `Creator: ${response.data.creator}`,
+          renderLargerThumbnail: true,
+          thumbnailUrl: videoData.cover,
+          mediaType: 1,
+          mediaUrl: videoData.cover,
+        }
+      }
+    });
+  } catch (error) {
+    await message.reply(error.message);
+  }
+});
 
 
 Index({
@@ -157,7 +194,7 @@ Index({
     const query = message.getUserInput();
 
     if (!query) {
-      return await message.reply('Please provide a search query. Usage: .modsearch <query>');
+      return await message.reply('Please provide a search query.');
     }
 
     const processingReaction = await message.react('🔍');
@@ -192,49 +229,144 @@ Index({
 });
 
 
+const { getVideoInfo, getDownloadLink } = require('../lib/youtube');
+
+
 Index({
-    pattern: 'ytv',
+    on: 'message',
+    fromMe: false,
+    dontAddCommandList: true
+}, async (message) => {
+    if (global.waiting && global.waiting.jid === message.jid) {
+        global.waiting.resolve(message);
+        global.waiting = null;
+    }
+});
+
+Index({
+    pattern: 'ytdl',
     fromMe: true,
-    desc: 'Download YouTube videos',
+    desc: 'Download YouTube videos with quality selection',
     type: 'downloader'
 }, async (message, match) => {
-    let url = message.getUserInput();
-
-    if (!url) {
-        return await message.reply("Please provide a YouTube link.\n\nExample: ytv youtube.com/watch?v=xxxxx");
-    }
+    const url = message.getUserInput();
+    if (!url) return await message.reply("*Please provide a YouTube URL!*");
 
     try {
-        const processingReaction = await message.react('⏳');
+        await message.react('⏳');
+        const video = await getVideoInfo(url);
         
-        const videoData = await fg.ytv(url);
-        console.log(videoData);
-        
-        if (!videoData || !videoData.dl_url) {
-            await message.react('❌');
-            await message.reply("Failed to fetch video information. Please try again.");
-            setTimeout(async () => {
-              await message.react('');
-            }, 3000);
+        const qualities = video.formats.video
+            .map((f, i) => `${i + 1}. ${f.quality} (${(f.filesize / (1024 * 1024)).toFixed(2)} MB)`)
+            .join('\n');
+
+        await message.reply(
+            `*🎥 ${video.title}*\n\n` +
+            `*Duration:* ${video.duration}\n\n` +
+            `*Available Qualities:*\n${qualities}\n\n` +
+            `Reply with number to download (1-${video.formats.video.length})`
+        );
+
+        global.waiting = {
+            jid: message.jid,
+            resolve: null
+        };
+
+        const response = await new Promise((resolve, reject) => {
+            global.waiting.resolve = resolve;
+            setTimeout(() => {
+                if (global.waiting) {
+                    global.waiting = null;
+                    reject(new Error('Response timeout'));
+                }
+            }, 30000); 
+        });
+
+        if (!response || isNaN(response.text)) {
+            await message.reply('Invalid selection! Process cancelled.');
+            return;
+        }
+
+        const choice = parseInt(response.text) - 1;
+        if (choice < 0 || choice >= video.formats.video.length) {
+            await message.reply('Invalid quality number! Process cancelled.');
             return;
         }
 
         await message.react('📥');
-        await message.client.sendMessage(message.jid, {
-            video: { url: videoData.dl_url },
-            caption: `🎥 *${videoData.title}*\n\n📁 *Size*: ${videoData.size}\n\n> Powered by Axiom-Md,`,
-            mimetype: "video/mp4",
-            fileName: `${videoData.title}.mp4`,
+        const selectedFormat = video.formats.video[choice];
+        const downloadLink = await getDownloadLink(video.id, selectedFormat.id);
+        console.log('Download link:', downloadLink);
+        console.log('Download link:', video);
+
+        await message.sendMedia({
+            video: { url: downloadLink.url },
+            caption: `*${video.title}*\n\n` +
+                    `*Quality:* ${selectedFormat.quality}\n` +
+                    `*Size:* ${(selectedFormat.filesize / (1024 * 1024)).toFixed(2)} MB\n\n` +
+                    `> Powered by Axiom-Md`,
+            mimetype: 'video/mp4'
         });
 
         await message.react('✅');
-        setTimeout(async () => {
-          await message.react('');
-        }, 3000);
+        setTimeout(() => message.react(''), 3000);
 
     } catch (error) {
-        console.error('Error:', error);
+        console.error('YTDL Error:', error);
         await message.react('❌');
-        await message.reply('An error occurred while processing your request.');
+        await message.reply(`Error: ${error.message}`);
+        global.waiting = null;
     }
+});
+
+
+Index({
+  pattern: 'igdl',
+  fromMe: true,
+  desc: 'Download Instagram videos/photos',
+  type: 'downloader'
+}, async (message, match) => {
+  const link = message.getUserInput();
+  
+  if (!link) {
+      return await message.reply('Please provide an Instagram link.');
+  }
+
+  try {
+      await message.react('⏳');
+      const url = `https://popular-anastassia-dolnard285-511c3281.koyeb.app/instagram?url=${encodeURIComponent(link)}`;
+      const response = await axios.get(url);
+      
+      if (!response.data.result) {
+          throw new Error('Failed to fetch media');
+      }
+
+      const mediaData = response.data.result;
+      await message.reply(`_*Downloading*_`);
+      
+      if (mediaData.videoUrl) {
+          await message.client.sendMessage(message.jid,{
+              video: { url: mediaData.videoUrl},
+              caption: mediaData.title || 'Powered by Axiom-Md',
+              mimetype: 'video/mp4',
+              contextInfo: {
+                  externalAdReply: {
+                      title: 'Instagram Video',
+                      body: `Creator: Master-j`,
+                      renderLargerThumbnail: true,
+                      thumbnailUrl: mediaData.thumbnail,
+                      mediaType: 1,
+                      mediaUrl: mediaData.thumbnail,
+                  },
+              }
+          });
+      } 
+      await message.react('✅');
+      setTimeout(() => message.react(''), 3000);
+
+  } catch (error) {
+      console.error('Instagram Download Error:', error);
+      await message.react('❌');
+      await message.reply('Error downloading media: ' + error.message);
+  }
 });

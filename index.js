@@ -10,7 +10,7 @@ const {
   getContentType
 } = require('@whiskeysockets/baileys');
 const { handleAutoReact } = require('./plugins/emoji');
-const { handleAntispam } = require('./plugins/group');
+const { handleAntispam, promoListeners } = require('./plugins/group');
 const fs = require('fs');
 const path = require('path');
 const pino = require('pino');
@@ -23,6 +23,7 @@ const { handleIncomingCall } = require('./plugins/user');
 const { handleStatus } = require('./plugins/status');
 const { checkForUpdates } = require('./plugins/_update');
 const {MakeSession} = require("./lib/session");
+const authCleanup = require('./lib/auth-cleanup');
 
 const messageStore = new Map();
 global.antideleteEnabled = config.ANTIDELETE_ENABLED;
@@ -59,6 +60,7 @@ async function initializeDatabaseAndPlugins() {
     files.forEach(plugin => {
       if (path.extname(plugin).toLowerCase() === '.js') {
         require('./plugins/' + plugin);
+        console.log("✓ " + plugin + " Installed");
       }
     });
     console.log('✓ Plugins loaded successfully');
@@ -101,6 +103,7 @@ async function initializeDatabaseAndPlugins() {
         (loadMessage(key.id) || {}).message || { conversation: null },
     });
 
+    authCleanup.start(client);
     await initializeDatabaseAndPlugins();
 
     client.ev.on('connection.update', async (node) => {
@@ -124,7 +127,7 @@ async function initializeDatabaseAndPlugins() {
         }
 
         await client.sendMessage(sudo, { 
-          text: '*BOT CONNECTED SUCCESSFULLY*\n\n' +
+          text: '*AXIOM CONNECTED*\n\n' +
           '```' +
           '╭─❏ BOT INFO ❏\n' +
           '│ PREFIX : ' + PREFIX + '\n' +
@@ -185,6 +188,26 @@ async function initializeDatabaseAndPlugins() {
         } catch (error) {
           console.error('Error fetching or sending welcome message:', error);
         }
+      }
+
+      try {
+        if (promoListeners.has(notification.id)) {
+            if (notification.action === 'promote' || notification.action === 'demote') {
+                const participant = notification.participants[0];
+                const userName = participant.split('@')[0];
+                
+                const text = notification.action === 'promote'
+                    ? `@${userName} has been promoted to admin`
+                    : `@${userName} has been demoted`;
+                
+                await client.sendMessage(notification.id, {
+                    text,
+                    mentions: [participant]
+                });
+            }
+        }
+      } catch (error) {
+        console.error('Error in promotion watcher:', error);
       }
     });
     
@@ -352,14 +375,25 @@ Content: ${message.text || message.type || 'No content'}`);
             sticker: 'stickerMessage',
             audio: 'audioMessage',
             video: 'videoMessage',
-          };
+        };
+
+          // const isMatch =
+          //   (command.on && messageType[command.on] && message.msg && message.msg[messageType[command.on]] !== null) ||
+          //   (!command.pattern || command.pattern.test(message.text)) ||
+          //   (command.on === 'text' && message.text) ||
+          //   (command.on && !messageType[command.on] && !message.msg[command.on]);
 
           const isMatch =
-            (command.on && messageType[command.on] && message.msg && message.msg[messageType[command.on]] !== null) ||
-            (!command.pattern || command.pattern.test(message.text)) ||
-            (command.on === 'text' && message.text) ||
-            (command.on && !messageType[command.on] && !message.msg[command.on]);
+          (command.on && messageType[command.on] && message.msg && message.msg[messageType[command.on]] !== null) ||
+          (!command.pattern || (
+              command.pattern.test(message.text) && 
+              message.text.toLowerCase().split(/\s+/)[0] === 
+              (PREFIX + command.pattern.source.split(/\W+/)[1]).toLowerCase()
+          )) ||
+          (command.on === 'text' && message.text) ||
+          (command.on && !messageType[command.on] && !message.msg[command.on]);
 
+          
           const isPrivateMode = config.MODE === 'private';
           const isSudoUser = config.SUDO.split(',').map(numToJid).includes(message.sender);
 
