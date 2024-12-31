@@ -43,7 +43,8 @@ const processedSessionId = config.SESSION_ID.replace(/^Axiom_/, '');
 
 if (!fs.existsSync("./auth/creds.json")) {
 	MakeSession(processedSessionId, "./auth/creds.json").then(
-		console.log("version : " + require("./package.json").version)
+    console.log("Session Created")
+		// console.log("version : " + require("./package.json").version)
 );
 }
 

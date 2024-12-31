@@ -1,7 +1,6 @@
 const { default: axios } = require('axios');
 const config = require('../config.js');
 const { Index } = require('../lib/');
-const fetch = require('node-fetch');
 
 
 // Warn system

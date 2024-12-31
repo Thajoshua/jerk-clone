@@ -1,10 +1,7 @@
-const { Index, mode } = require('../lib/');
-const axios = require('axios');
+const { Index} = require('../lib/');
 const { isAdmin } = require('../lib/utils');
 const schedule = require('node-schedule');
 const moment = require('moment-timezone');
-const fetch = require('node-fetch');
-const fs = require('fs');
 const { WelcomeSetting } = require('../database/database');
 const config = require('../config');
 
