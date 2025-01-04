@@ -1,6 +1,6 @@
   const { exec } = require('child_process');
   const { Index, mode } = require('../lib/');
-  const { TelegraPh } = require('../lib/utils');
+  const { TelegraPh, updateConfig } = require('../lib/utils');
   const fs = require('fs');
   const path = require('path');
   const os = require('os');
@@ -97,8 +97,7 @@
     return `${hours}h ${minutes}m ${seconds}s`;
   }
 
-  // Store the auto reject state
-  let autoRejectEnabled = false;
+
 
   Index({
     pattern: 'restart',
@@ -108,7 +107,7 @@
   }, async (message, match) => {
     await message.reply('Restarting bot...');
     setTimeout(() => {
-      exec('pm2 restart bot', (error, stdout, stderr) => {
+      exec('pm2 restart', (error, stdout, stderr) => {
         if (error) {
           console.error('Error restarting bot:', error);
           return message.reply(`Failed to restart bot: ${error.message}`);
@@ -156,22 +155,40 @@
   });
 
 
-
   Index({
     pattern: 'block ?(.*)',
     fromMe: true,
     desc: 'Block a user',
     type: 'user'
   }, async (message, match) => {
-    const userToBlock = message.reply_message ? message.reply_message.sender : message.getUserInput();;
-    if (!userToBlock) return await message.reply('Please reply to a message or provide the number to block.');
-    
-    try {
-        await message.client.updateBlockStatus(userToBlock, "block");
-        await message.reply('User blocked successfully.');
-    } catch (error) {
-        await message.reply('Failed to block user.');
+    if (message.quoted) {
+      try {
+        await message.client.updateBlockStatus(message.quoted.participant, "block");
+        return await message.reply('User blocked successfully.');
+      } catch (error) {
+        return await message.reply('Failed to block user.');
+      }
     }
+    const input = message.getUserInput();
+    if (input) {
+      const userToBlock = input.includes('@') ? input : input + '@s.whatsapp.net';
+      try {
+        await message.client.updateBlockStatus(userToBlock, "block");
+        return await message.reply('User blocked successfully.');
+      } catch (error) {
+        return await message.reply('Failed to block user.');
+      }
+    }
+    if (message.jid.endsWith('@s.whatsapp.net')) {
+      try {
+        await message.client.updateBlockStatus(message.jid, "block");
+        return await message.reply('User blocked successfully.');
+      } catch (error) {
+        return await message.reply('Failed to block user.');
+      }
+    }
+
+    return await message.reply('Please reply to a message, provide the number to block, or use in user chat.');
   });
 
 
@@ -181,17 +198,35 @@
     desc: 'Unblock a user',
     type: 'user'
   }, async (message, match) => {
-    const userToUnblock = message.reply_message ? message.reply_message.sender : message.getUserInput();
-    if (!userToUnblock) return await message.reply('Please reply to a message or provide the number to unblock.');
-    
-    try {
-        await message.client.updateBlockStatus(userToUnblock, "unblock");
-        await message.reply('User unblocked successfully.');
-    } catch (error) {
-        await message.reply('Failed to unblock user.');
+    if (message.quoted) {
+      try {
+        await message.client.updateBlockStatus(message.quoted.participant, "unblock");
+        return await message.reply('User unblocked successfully.');
+      } catch (error) {
+        return await message.reply('Failed to unblock user.');
+      }
     }
-  });
+    const input = message.getUserInput();
+    if (input) {
+      const userToUnblock = input.includes('@') ? input : input + '@s.whatsapp.net';
+      try {
+        await message.client.updateBlockStatus(userToUnblock, "unblock");
+        return await message.reply('User unblocked successfully.');
+      } catch (error) {
+        return await message.reply('Failed to unblock user.');
+      }
+    }
+    if (message.jid.endsWith('@s.whatsapp.net')) {
+      try {
+        await message.client.updateBlockStatus(message.jid, "unblock");
+        return await message.reply('User unblocked successfully.');
+      } catch (error) {
+        return await message.reply('Failed to unblock user.');
+      }
+    }
 
+    return await message.reply('Please reply to a message, provide the number to unblock, or use in user chat.');
+  });
 
 
 
@@ -210,9 +245,20 @@
         : message.sender;
 
       const ppUrl = await message.client.profilePictureUrl(userJid, 'image').catch(() => null);
+      const status = await message.client.fetchStatus(userJid).catch(() => ({ status: 'Not available' }));
+      const bizProfile = await message.client.getBusinessProfile(userJid).catch(() => null);
+
       let userInfo = `*User Information*\n\n`;
-      userInfo += `• Name: ${message.pushName || 'Unknown'}\n`;
       userInfo += `• Number: ${userJid.split('@')[0]}\n`;
+      userInfo += `• Name: ${bizProfile?.name || 'Unknown'}\n`;
+      userInfo += `• About: ${status.status || 'Not available'}\n`;
+
+      if (bizProfile) {
+        userInfo += `• Business Description: ${bizProfile.description || 'Not available'}\n`;
+        userInfo += `• Category: ${bizProfile.category || 'Not available'}\n`;
+        userInfo += `• Email: ${bizProfile.email || 'Not available'}\n`;
+        userInfo += `• Website: ${bizProfile.website?.[0] || 'Not available'}\n`;
+      }
 
       if (ppUrl) {
         await message.client.sendMessage(message.chat, {
@@ -337,6 +383,7 @@
     await message.reply('Your message has been sent successfully!');
   });
 
+  let autoRejectEnabled = process.env.AUTO_REJECT_ENABLED === 'true';
 
   Index({
     pattern: 'anticall',
@@ -360,17 +407,19 @@
     switch (input) {
       case 'on':
         autoRejectEnabled = true;
-        await message.reply('✅ Auto call reject has been *enabled*');
+       updateConfig({ AUTO_REJECT_ENABLED: 'true' });
+        await message.reply('Auto call reject has been *enabled*');
         break;
 
       case 'off':
         autoRejectEnabled = false;
-        await message.reply('❌ Auto call reject has been *disabled*');
+        updateConfig({ AUTO_REJECT_ENABLED: 'false' });
+        await message.reply('Auto call reject has been *disabled*');
         break;
 
       case 'status':
         await message.reply(
-          '*🔄 Auto Call Reject Status*\n\n' +
+          '*Auto Call Reject Status*\n\n' +
           `Status: ${autoRejectEnabled ? 'Enabled ✅' : 'Disabled ❌'}`
         );
         break;
@@ -382,7 +431,7 @@
     try {
       await client.rejectCall(call.id, call.from);
       await client.sendMessage(call.from, {
-        text: '❌ Auto reject is enabled. Voice and video calls are not accepted.'
+        text: 'Auto reject is enabled. Voice and video calls are not accepted.'
       });
       
       console.log('Rejected call from:', call.from);
@@ -611,6 +660,7 @@
   );
 
   let gis = require("g-i-s");
+const { MODE } = require('../config');
 
   const sendfromurl = async (message, url) => {
     let buff = await axios.get(url, { responseType: 'arraybuffer' });
@@ -666,20 +716,16 @@
     if (!message.quoted) {
       return await message.reply('Please reply to a view once message');
     }
-
     if (message.quotedType !== 'viewOnceMessage' && message.quotedType !== 'viewOnceMessageV2') {
       return await message.reply('This is not a view once message');
     }
-
     try {
       let viewOnceMsg = message.quoted.message.viewOnceMessage || message.quoted.message.viewOnceMessageV2;
-      // console.log(`View Once Message: ${JSON.stringify(viewOnceMsg)}`);
       if (viewOnceMsg.message) {
         if (viewOnceMsg.message.imageMessage) {
           const imageMessage = viewOnceMsg.message.imageMessage;
           const caption = imageMessage.caption || '';
-          const filepath = await message.downloadAndSaveMediaMessage(imageMessage, path.join(os.tmpdir(), 'image'));
-          
+          const filepath = await message.downloadAndSaveMediaMessage(imageMessage, path.join(os.tmpdir(), 'image'));  
           await message.client.sendMessage(message.jid, {
             image: { url: filepath },
             caption: caption
@@ -689,7 +735,6 @@
           const videoMessage = viewOnceMsg.message.videoMessage;
           const caption = videoMessage.caption || '';
           const filepath = await message.downloadAndSaveMediaMessage(videoMessage, path.join(os.tmpdir(), 'video'));
-          
           await message.client.sendMessage(message.jid, {
             video: { url: filepath },
             caption: caption
@@ -1051,6 +1096,243 @@ Index({
         await message.reply(config.response);
         break;
     }
+});
+
+
+let alwaysOnline = process.env.ONLINE === 'true';
+
+Index({
+    pattern: 'alwaysonline ?(.*)',
+    fromMe: true,
+    desc: 'Set always online status',
+    type: 'misc'
+}, async (message, match) => {
+    const cmd = message.getUserInput()?.toLowerCase();
+
+    if (!cmd || !['on', 'off', 'status'].includes(cmd)) {
+        return await message.reply(
+            '*📱 Always Online Settings*\n\n' +
+            'Commands:\n' +
+            '├ .alwaysonline on - Enable always online\n' +
+            '├ .alwaysonline off - Disable always online\n' +
+            '└ .alwaysonline status - Check current setting\n\n' +
+            'Current Status: ' + (alwaysOnline ? 'Enabled ✅' : 'Disabled ❌')
+        );
+    }
+
+    switch (cmd) {
+        case 'on':
+            alwaysOnline = true;
+            updateConfig({ ONLINE: 'true' });
+            await message.reply('✅ Always online has been *enabled*');
+            break;
+
+        case 'off':
+            alwaysOnline = false;
+            updateConfig({ ONLINE: 'false' });
+            await message.reply('❌ Always online has been *disabled*');
+            break;
+
+        case 'status':
+            await message.reply(
+                '*📱 Always Online Status*\n\n' +
+                `Status: ${alwaysOnline ? 'Enabled ✅' : 'Disabled ❌'}`
+            );
+            break;
+    }
+});
+
+// Index({
+//   pattern: 'testctx',
+//   fromMe: true,
+//   desc: 'Test different contextInfo parameters',
+//   type: 'misc'
+// }, async (message, match) => {
+//   try {
+//       const mentionedJid = [message.sender];
+      
+//       // Test 1: Basic mention
+//       await message.client.sendMessage(message.jid, {
+//           text: 'Test 1: Basic Mention\n@user',
+//           contextInfo: {
+//               mentionedJid: mentionedJid
+//           }
+//       });
+
+//       // Test 2: Quote with mention
+//       await message.client.sendMessage(message.jid, {
+//           text: 'Test 2: Quote with Mention\n@user',
+//           contextInfo: {
+//               mentionedJid: mentionedJid,
+//               quotedMessage: {
+//                   conversation: "This is a quoted message"
+//               },
+//               participant: message.sender,
+//               remoteJid: message.jid
+//           }
+//       });
+
+//       // Test 3: Forward message
+//       await message.client.sendMessage(message.jid, {
+//           text: 'Test 3: Forwarded Message',
+//           contextInfo: {
+//               isForwarded: true,
+//               forwardingScore: 2,
+//               participant: message.sender
+//           }
+//       });
+
+//       // Test 4: Stanza ID
+//       await message.client.sendMessage(message.jid, {
+//           text: 'Test 4: Message with Stanza ID',
+//           contextInfo: {
+//               stanzaId: 'custom-stanza-id',
+//               participant: message.sender,
+//               quotedMessage: {
+//                   conversation: "Testing stanza ID"
+//               }
+//           }
+//       });
+
+//       // Test 5: Various flags
+//       await message.client.sendMessage(message.jid, {
+//           text: 'Test 5: Various Flags',
+//           contextInfo: {
+//               isForwarded: true,
+//               forwardingScore: 5,
+//               mentionedJid: mentionedJid,
+//               participant: message.sender,
+//               quotedMessage: {
+//                   conversation: "Multiple context parameters"
+//               },
+//               expiration: 86400,
+//               ephemeralSettingTimestamp: Date.now(),
+//               disappearingMode: {
+//                   initiator: message.sender
+//               }
+//           }
+//       });
+
+//       await message.reply('✅ Context tests completed');
+      
+//   } catch (error) {
+//       console.error('Context test error:', error);
+//       await message.reply('❌ Error during context tests: ' + error.message);
+//   }
+// });
+
+
+
+
+Index({
+  pattern: 'settings ?(.*)',
+  fromMe: true,
+  desc: 'Configure bot settings',
+  vpsOnly: true,
+  type: 'owner'
+}, async (message, match) => {
+  const input = message.getUserInput()?.toLowerCase().trim();
+  const [cmd, ...args] = input ? input.split(' ') : [];
+
+  let settings = {
+      PREFIX: process.env.HANDLERS || '^[/]',
+      BOT_NAME: process.env.BOT_NAME || 'Axiom',
+      MODE:process.env.MODE || 'public',
+      LOG_MSG: process.env.LOG_MSG === 'true',
+      AUTO_TYPE: process.env.AUTO_TYPE === 'true',
+      RECORD: process.env.RECORD === 'true',
+      READ_MSG: process.env.READ_MSG === 'true',
+      READ_CMD: process.env.READ_CMD === 'true'
+  };
+
+  if (!cmd || cmd === 'status') {
+      return await message.reply(
+          '*⚙️ Bot Settings*\n\n' +
+          'Prefix: ' + settings.PREFIX + '\n' +
+          'Bot Name: ' + settings.BOT_NAME + '\n' +
+          'Mode: ' + settings.MODE + '\n' +
+          'Log Messages: ' + (settings.LOG_MSG ? '✅' : '❌') + '\n' +
+          'Auto Typing: ' + (settings.AUTO_TYPE ? '✅' : '❌') + '\n' +
+          'Auto Recording: ' + (settings.RECORD ? '✅' : '❌') + '\n' +
+          'Read Messages: ' + (settings.READ_MSG ? '✅' : '❌') + '\n' +
+          'Read Commands: ' + (settings.READ_CMD ? '✅' : '❌') + '\n\n' +
+          '*Commands:*\n' +
+          '• .settings prefix <newprefix>\n' +
+          '• .settings botname <newname>\n' +
+          '• .settings mode <public/private>\n' +
+          '• .settings logmsg on/off\n' +
+          '• .settings autotype on/off\n' +
+          '• .settings record on/off\n' +
+          '• .settings readmsg on/off\n' +
+          '• .settings readcmd on/off'
+      );
+  }
+
+  switch (cmd) {
+      case 'prefix':
+          const newPrefix = args[0];
+          if (!newPrefix) return await message.reply('Please provide a new prefix');
+          updateConfig({ HANDLERS: newPrefix });
+          await message.reply(`✅ Prefix updated to: ${newPrefix}`);
+          break;
+
+      case 'botname':
+          const newName = args.join(' ');
+          if (!newName) return await message.reply('Please provide a new bot name');
+          updateConfig({ BOT_NAME: newName });
+          await message.reply(`✅ Bot name updated to: ${newName}`);
+          break;
+
+      case 'mode':
+          const newMode = args[0];
+          if (!newMode) return await message.reply('Please provide a new mode');
+          updateConfig({ MODE: newMode });
+          await message.reply(`✅ Mode updated to: ${newMode}`);
+          break;
+
+      case 'logmsg':
+          if (!args[0] || !['on', 'off'].includes(args[0])) {
+              return await message.reply('Please specify on or off');
+          }
+          updateConfig({ LOG_MSG: args[0] === 'on' ? 'true' : 'false' });
+          await message.reply(`✅ Log messages ${args[0] === 'on' ? 'enabled' : 'disabled'}`);
+          break;
+
+      case 'autotype':
+          if (!args[0] || !['on', 'off'].includes(args[0])) {
+              return await message.reply('Please specify on or off');
+          }
+          updateConfig({ AUTO_TYPE: args[0] === 'on' ? 'true' : 'false' });
+          await message.reply(`✅ Auto typing ${args[0] === 'on' ? 'enabled' : 'disabled'}`);
+          break;
+
+      case 'record':
+          if (!args[0] || !['on', 'off'].includes(args[0])) {
+              return await message.reply('Please specify on or off');
+          }
+          updateConfig({ RECORD: args[0] === 'on' ? 'true' : 'false' });
+          await message.reply(`✅ Auto recording ${args[0] === 'on' ? 'enabled' : 'disabled'}`);
+          break;
+
+      case 'readmsg':
+          if (!args[0] || !['on', 'off'].includes(args[0])) {
+              return await message.reply('Please specify on or off');
+          }
+          updateConfig({ READ_MSG: args[0] === 'on' ? 'true' : 'false' });
+          await message.reply(`✅ Read messages ${args[0] === 'on' ? 'enabled' : 'disabled'}`);
+          break;
+
+      case 'readcmd':
+          if (!args[0] || !['on', 'off'].includes(args[0])) {
+              return await message.reply('Please specify on or off');
+          }
+          updateConfig({ READ_CMD: args[0] === 'on' ? 'true' : 'false' });
+          await message.reply(`✅ Read commands ${args[0] === 'on' ? 'enabled' : 'disabled'}`);
+          break;
+
+      default:
+          await message.reply('Invalid command. Use .settings to see available options.');
+  }
 });
 
   module.exports = {

@@ -14,6 +14,7 @@ const path = require('path');
 const axios = require('axios');
 const cheerio = require('cheerio');
 const FormData = require('form-data');
+const { tmpdir } = require('os');
 const Jimp = require('jimp');
 
 async function convertWebpToMp4(webpBuffer) {
@@ -32,45 +33,116 @@ async function convertWebpToMp4(webpBuffer) {
     }
 }
 
-function webp2mp4File(path) {
+
+async function webp2mp4File(buffer) {
     return new Promise((resolve, reject) => {
-        const form = new FormData();
-        form.append('new-image-url', '');
-        form.append('new-image', fs.createReadStream(path));
+        const tempFile = path.join(tmpdir(), `temp-${Date.now()}.webp`);
         
-        axios({
-            method: 'post',
-            url: 'https://s6.ezgif.com/webp-to-mp4',
-            data: form,
-            headers: {
-                'Content-Type': `multipart/form-data; boundary=${form._boundary}`
-            }
-        }).then(({ data }) => {
-            const bodyFormThen = new FormData();
-            const $ = cheerio.load(data);
-            const file = $('input[name="file"]').attr('value');
-            bodyFormThen.append('file', file);
-            bodyFormThen.append('convert', "Convert WebP to MP4!");
+        try {
+            fs.writeFileSync(tempFile, buffer);
+            
+            const form = new FormData();
+            form.append('new-image-url', '');
+            form.append('new-image', fs.createReadStream(tempFile), {
+                filename: path.basename(tempFile),
+                contentType: 'image/webp'
+            });
             
             axios({
                 method: 'post',
-                url: 'https://ezgif.com/webp-to-mp4/' + file,
-                data: bodyFormThen,
+                url: 'https://s6.ezgif.com/webp-to-mp4',
+                data: form,
                 headers: {
-                    'Content-Type': `multipart/form-data; boundary=${bodyFormThen._boundary}`
+                    ...form.getHeaders()
                 }
             }).then(({ data }) => {
+                if (!data) {
+                    throw new Error('No data received from conversion service');
+                }
+
                 const $ = cheerio.load(data);
-                const result = 'https:' + $('div#output > p.outfile > video > source').attr('src');
+                const file = $('input[name="file"]').attr('value');
+                
+                if (!file) {
+                    throw new Error('No file token received from conversion service');
+                }
+
+                const bodyFormThen = new FormData();
+                bodyFormThen.append('file', file);
+                bodyFormThen.append('convert', 'Convert WebP to MP4!');
+
+                return axios({
+                    method: 'post',
+                    url: 'https://ezgif.com/webp-to-mp4/' + file,
+                    data: bodyFormThen,
+                    headers: {
+                        ...bodyFormThen.getHeaders()
+                    }
+                });
+            }).then(({ data }) => {
+                if (!data) {
+                    throw new Error('No data received from final conversion');
+                }
+
+                const $ = cheerio.load(data);
+                const videoSource = $('div#output > p.outfile > video > source').attr('src');
+                
+                if (!videoSource) {
+                    throw new Error('No video source found in response');
+                }
+
+                const result = videoSource.startsWith('https:') ? videoSource : 'https:' + videoSource;
+                
+                fs.unlinkSync(tempFile);
+                
                 resolve({
                     status: true,
                     message: "Created By Axiom-MD",
                     result: result
                 });
-            }).catch(reject);
-        }).catch(reject);
+            }).catch((err) => {
+                if (fs.existsSync(tempFile)) {
+                    fs.unlinkSync(tempFile);
+                }
+                reject(err);
+            });
+        } catch (err) {
+            if (fs.existsSync(tempFile)) {
+                fs.unlinkSync(tempFile);
+            }
+            reject(err);
+        }
     });
 }
+
+const webp2mp4 = async (buffer) => {
+    try {
+        let result = await webp2mp4File(buffer);
+        return result;
+    } catch (error) {
+        console.error('Error in webp2mp4:', error);
+        throw error;
+    }
+}
+
+
+Index({
+    pattern: "mp4",
+    fromMe: mode,
+    desc: "Changes sticker to Video",
+    type: "converter",
+  },
+  async (message) => {
+    if (!message.quoted)
+      return await message.reply("_Reply to a sticker_");
+    if (message.quotedType !== "stickerMessage")
+      return await message.reply("_Not a sticker_");
+    let buff = await message.downloadMediaMessage();
+    let buffer = await webp2mp4(buff);
+    return await message.sendMessage(buffer, {}, "video");
+  }
+);
+
 
 Index({
     pattern: 'hackerman',
@@ -306,28 +378,6 @@ Index({
         await message.reply('Failed to convert sticker to image.');
     }
 });
-
-const webp2mp4 = async (buff) => {
-    let buffer = await webp2mp4File(buff);
-    return buffer;
-}
-
-Index({
-    pattern: "mp4",
-    fromMe: mode,
-    desc: "Changes sticker to Video",
-    type: "converter",
-  },
-  async (message) => {
-    if (!message.quoted)
-      return await message.reply("_Reply to a sticker_");
-    if (message.quotedType !== "stickerMessage")
-      return await message.reply("_Not a sticker_");
-    let buff = await message.downloadMediaMessage();
-    let buffer = await webp2mp4(buff);
-    return await message.sendMessage(buffer, {}, "video");
-  }
-);
 
 
 

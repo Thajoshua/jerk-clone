@@ -6,11 +6,11 @@ Index({
 	desc: 'Bot response in milliseconds.',
 	type: 'info'
 }, async (message, match, client) => {
-	const start = new Date().getTime();
-	const msg = await message.reply('*ᴩɪɴɢ...*');
-	const end = new Date().getTime();
-	const responseTime = end - start;
-	await message.reply(`*pong!*\nʟᴀᴛᴇɴᴄʏ: ${responseTime}ms`);
+	let start = new Date().getTime();
+	let msg = await message.reply('*ᴩɪɴɢ...*');
+	let end = new Date().getTime();
+	let responseTime = end - start;
+	await msg.edit(`*pong!*\nʟᴀᴛᴇɴᴄʏ: ${responseTime}ms`);
 });
 
 const os = require('os');

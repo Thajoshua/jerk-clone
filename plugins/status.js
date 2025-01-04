@@ -1,8 +1,10 @@
 const { Index } = require('../lib/');
+const fs = require('fs');
+const { updateConfig } = require('../lib/utils');
 
-let autoViewEnabled = false;
-let viewDelay = 0; 
-let excludedContacts = new Set();
+let autoViewEnabled = process.env.AUTO_STATUS === 'true';
+let viewDelay = parseInt(process.env.STATUS_VIEW_DELAY) || 0;
+let excludedContacts = new Set(process.env.STATUS_EXCLUDED_CONTACTS ? process.env.STATUS_EXCLUDED_CONTACTS.split(',') : []);
 
 Index({
     pattern: 'autostatus(?: (.*))?',
@@ -32,11 +34,13 @@ Index({
     switch (command) {
         case 'on':
             autoViewEnabled = true;
+            updateConfig({ AUTO_STATUS: 'true' });
             await message.reply('✅ Auto status view has been *enabled*');
             break;
 
         case 'off':
             autoViewEnabled = false;
+            updateConfig({ AUTO_STATUS: 'false' });
             await message.reply('❌ Auto status view has been *disabled*');
             break;
 
@@ -46,6 +50,7 @@ Index({
                 return await message.reply('Please provide a valid delay in milliseconds');
             }
             viewDelay = newDelay;
+            updateConfig({ STATUS_VIEW_DELAY: newDelay.toString() });
             await message.reply(`⏱️ View delay set to ${newDelay}ms`);
             break;
 
@@ -55,6 +60,9 @@ Index({
                 return await message.reply('Please provide a number to exclude');
             }
             excludedContacts.add(numberToExclude);
+            updateConfig({ 
+                STATUS_EXCLUDED_CONTACTS: Array.from(excludedContacts).join(',')
+            });
             await message.reply(`📵 ${numberToExclude} added to exclusion list`);
             break;
 
@@ -64,6 +72,9 @@ Index({
                 return await message.reply('Please provide a number to remove from exclusion');
             }
             excludedContacts.delete(numberToInclude);
+            updateConfig({ 
+                STATUS_EXCLUDED_CONTACTS: Array.from(excludedContacts).join(',')
+            });
             await message.reply(`✅ ${numberToInclude} removed from exclusion list`);
             break;
 
@@ -99,4 +110,4 @@ async function handleStatus(status, client) {
 module.exports = {
     handleStatus,
     isAutoViewEnabled: () => autoViewEnabled
-}; 
+};

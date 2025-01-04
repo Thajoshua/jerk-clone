@@ -2,15 +2,13 @@ const { Index} = require('../lib/');
 const { isAdmin } = require('../lib/utils');
 const schedule = require('node-schedule');
 const moment = require('moment-timezone');
-const { WelcomeSetting } = require('../database/database');
+const { WelcomeSetting, Event } = require('../database/database');
 const config = require('../config');
 
 const welcomeDB = new Map();
 const userWarnings = new Map();
 const scheduledMutes = new Map();
 const promoListeners = new Map();
-
-
 
 Index({
     pattern: 'request',
@@ -766,51 +764,66 @@ const urlRegex = /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()
 const warnings = new Map();
 
 Index({
-  on: 'message',
-  fromMe: false,
-  dontAddCommandList: true,
+    on: 'message', 
+    fromMe: false,
+    dontAddCommandList: true,
 }, async (message) => {
-  if (!config.ANTILINK.enabled || !message.isGroup) return;
+    if (!config.ANTILINK.enabled || !message.isGroup) return;
 
-  const groupMetadata = await message.client.groupMetadata(message.jid);
-  const isAdmin = groupMetadata.participants.some(p => p.id === message.sender && p.admin);
+    const groupMetadata = await message.client.groupMetadata(message.jid);
+    const isAdmin = groupMetadata.participants.some(p => p.id === message.sender && (p.admin === 'admin' || p.admin === 'superadmin'));
 
-  if (isAdmin) return;
+    if (isAdmin) return;
 
-  const matches = message.text.match(urlRegex);
-  if (!matches) return;
+    const matches = message.text.match(urlRegex);
+    if (!matches) return;
 
-  const isWhitelisted = matches.every(url => {
-    const domain = new URL(url).hostname;
-    return config.ANTILINK.whitelistedDomains.some(whitelisted => domain.includes(whitelisted));
-  });
+    const isWhitelisted = matches.every(url => {
+        const domain = new URL(url).hostname;
+        return config.ANTILINK.whitelistedDomains.some(whitelisted => domain.includes(whitelisted));
+    });
 
-  if (isWhitelisted) return;
+    if (isWhitelisted) return;
 
-  const userId = message.sender;
-  const userWarnings = warnings.get(userId) || 0;
-
-  if (userWarnings >= config.ANTILINK.maxWarnings) {
-    if (config.ANTILINK.action === 'kick') {
-      await message.kick(userId);
-      await message.reply(`@${userId.split('@')[0]} has been kicked for sending too many links.`);
-    } else {
-      await message.reply(`@${userId.split('@')[0]} has reached the maximum number of warnings.`);
-    }
-    warnings.delete(userId);
-  } else {
-    warnings.set(userId, userWarnings + 1);
+    const userId = message.sender;
+    const userWarnings = warnings.get(userId) || 0;
 
     if (config.ANTILINK.action === 'delete') {
-      await message.delete();
+        await message.delete();
+        return;
     }
 
-    if (config.ANTILINK.action === 'warn' || config.ANTILINK.action === 'delete') {
-      await message.reply(`${config.ANTILINK.warningMessage}\n\nWarnings: ${userWarnings + 1}/${config.ANTILINK.maxWarnings}`);
+    if (config.ANTILINK.action === 'warn') {
+        await message.delete();
+
+        await message.client.sendMessage(message.jid, {
+            text: `${config.ANTILINK.warningMessage}\n\nWarnings: ${userWarnings + 1}/${config.ANTILINK.maxWarnings}`,
+            mentions: [userId]
+        });
+
+        warnings.set(userId, userWarnings + 1);
+
+        if (userWarnings + 1 >= config.ANTILINK.maxWarnings) {
+            await message.kick(userId);
+            await message.sendMessage(message.jid, {
+                text: `@${userId.split('@')[0]} was kicked for exceeding warn limit`,
+                mentions: [userId]
+            });
+            warnings.delete(userId);
+            return;
+        }
     }
-  }
+
+    if (config.ANTILINK.action === 'kick') {
+        await message.kick(userId);
+        await message.client.sendMessage(message.jid, {
+            text: `@${userId.split('@')[0]} has been kicked for sending links.`,
+            mentions: [userId] 
+        });
+        return;
+    }
 });
-
+    
 
 
 Index({
@@ -1121,6 +1134,175 @@ Index({
         await message.reply(tagSettings.message);
     }
 });
+
+
+Index({
+    pattern: 'leave',
+    fromMe: true,
+    desc: 'Leave the group',
+    type: 'group'
+}, async (message) => {
+    if (!message.isGroup) return await message.reply('This command can only be used in a group.');
+    try {
+        await message.client.groupLeave(message.jid);
+    } catch (error) {
+        console.error('Error leaving group:', error);
+        await message.reply('Failed to leave the group.');
+    }
+});
+
+
+Index({
+    pattern: 'attention',
+    fromMe: true,
+    desc: 'Send attention message with mentions',
+    type: 'group'
+}, async (message) => {
+    if (!message.isGroup) {
+        return await message.reply('This command can only be used in groups.');
+    }
+
+    try {
+        const groupMetadata = await message.client.groupMetadata(message.jid);
+        const isAdmin = groupMetadata.participants.some(p => 
+            p.id === message.sender && (p.admin === 'admin' || p.admin === 'superadmin')
+        );
+
+        if (!isAdmin) {
+            return await message.reply('This command can only be used by group admins.');
+        }
+
+        const participants = groupMetadata.participants;
+        const mentionedJid = participants.map(p => p.id);
+
+        const attentionMessage = '🚨 *ATTENTION EVERYONE* 🚨\n\n' + 
+            (message.getUserInput() || 'Important announcement from admin!');
+
+        await message.client.sendMessage(message.jid, {
+            text: attentionMessage,
+            mentions: mentionedJid
+        });
+
+    } catch (error) {
+        console.error('Error in attention command:', error);
+        await message.reply('Error sending attention message: ' + error.message);
+    }
+});
+
+
+Index({
+    pattern: 'event',
+    fromMe: true,
+    desc: 'Create and manage group events',
+    type: 'group'
+}, async (message) => {
+    if (!message.isGroup) {
+        return await message.reply('This command can only be used in groups.');
+    }
+
+    const args = message.getUserInput().split('|').map(arg => arg.trim());
+    const command = args[0]?.toLowerCase();
+
+    if (!command || !['create', 'list', 'delete'].includes(command)) {
+        return await message.reply(`*Event Management*\n\nUsage:
+.event create|title|date|description
+.event list
+.event delete|eventId
+
+Example:
+.event create|Birthday Party|2024-01-01 15:00|Join us for cake and fun!
+
+Date format: YYYY-MM-DD HH:mm`);
+    }
+
+    try {
+        switch (command) {
+            case 'create':
+                if (args.length < 4) {
+                    return await message.reply('Please provide title, date and description for the event.');
+                }
+
+                const [_, title, dateStr, description] = args;
+                const eventDate = new Date(dateStr);
+
+                if (isNaN(eventDate.getTime())) {
+                    return await message.reply('Invalid date format. Use YYYY-MM-DD HH:mm');
+                }
+
+                const eventId = Math.random().toString(36).substring(7);
+                
+                await Event.create({
+                    id: eventId,
+                    groupId: message.jid,
+                    title: title,
+                    date: eventDate,
+                    description: description,
+                    createdBy: message.sender
+                });
+
+                await message.client.sendMessage(message.jid, {
+                    text: `🎉 *New Event Created* 🎉\n\n` +
+                         `*Title:* ${title}\n` +
+                         `*Date:* ${eventDate.toLocaleString()}\n` +
+                         `*Description:* ${description}\n` +
+                         `*Event ID:* ${eventId}\n\n` +
+                         `Created by @${message.sender.split('@')[0]}`,
+                    mentions: [message.sender]
+                });
+                break;
+
+            case 'list':
+                const events = await Event.findAll({
+                    where: { groupId: message.jid },
+                    order: [['date', 'ASC']]
+                });
+
+                if (events.length === 0) {
+                    return await message.reply('No upcoming events found.');
+                }
+
+                let eventList = '*📅 Upcoming Events*\n\n';
+                events.forEach(event => {
+                    eventList += `*Event ID:* ${event.id}\n` +
+                               `*Title:* ${event.title}\n` +
+                               `*Date:* ${event.date.toLocaleString()}\n` +
+                               `*Description:* ${event.description}\n` +
+                               `*Created by:* @${event.createdBy.split('@')[0]}\n\n`;
+                });
+
+                await message.client.sendMessage(message.jid, {
+                    text: eventList,
+                    mentions: events.map(e => e.createdBy)
+                });
+                break;
+
+            case 'delete':
+                if (args.length < 2) {
+                    return await message.reply('Please provide the event ID to delete.');
+                }
+                const deleteId = args[1];
+                const eventToDelete = await Event.findOne({
+                    where: { id: deleteId, groupId: message.jid }
+                });
+
+                if (!eventToDelete) {
+                    return await message.reply('Event not found.');
+                }
+
+                if (eventToDelete.createdBy !== message.sender) {
+                    return await message.reply('You can only delete events that you created.');
+                }
+
+                await eventToDelete.destroy();
+                await message.reply(`Event ${deleteId} has been deleted.`);
+                break;
+        }
+    } catch (error) {
+        console.error('Error in event command:', error);
+        await message.reply('An error occurred while managing the event.');
+    }
+});
+
 
 module.exports = {
     handleAntispam,

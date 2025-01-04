@@ -135,6 +135,7 @@ async function initializeDatabaseAndPlugins() {
           '│ PLUGINS : ' + commands.filter(command => command.pattern).length + '\n' +
           '│ VERSION : ' + require('./package.json').version + '\n' +
           '│ PLATFORM : ' + process.platform + '\n' +
+          '│ MODE : ' + config.MODE + '\n' +
           '│ MEMORY : ' + (process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2) + 'MB\n' +
           '│ UPTIME : ' + Math.floor(process.uptime()) + ' seconds\n' +
           '│ NODE : ' + process.version + '\n' +

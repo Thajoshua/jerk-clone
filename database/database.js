@@ -50,6 +50,32 @@ const Notification = sequelize.define('Notification', {
   ]
 });
 
+const Event = sequelize.define('Event', {
+  id: {
+    type: DataTypes.STRING,
+    primaryKey: true
+  },
+  groupId: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  title: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  date: {
+    type: DataTypes.DATE,
+    allowNull: false
+  },
+  description: {
+    type: DataTypes.TEXT
+  },
+  createdBy: {
+    type: DataTypes.STRING,
+    allowNull: false
+  }
+});
+
 const WelcomeSetting = sequelize.define('WelcomeSetting', {
   groupId: {
     type: DataTypes.STRING,
@@ -172,4 +198,4 @@ const deletePlugin = async (pluginName) => {
   }
 };
 
-module.exports = { sequelize, UserSession, Notification, checkDatabaseConnection, storeNotification, WelcomeSetting, getNotifications, clearNotifications, Plugin, savePlugin, getInstalledPlugins, deletePlugin, PLUGINS_FOLDER };
+module.exports = { sequelize, UserSession, Notification, checkDatabaseConnection, storeNotification, WelcomeSetting, getNotifications, clearNotifications, Plugin, savePlugin, getInstalledPlugins, deletePlugin, PLUGINS_FOLDER,Event };
