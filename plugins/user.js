@@ -331,33 +331,6 @@
 
 
   Index({
-    pattern: 'link ?(.*)',
-    fromMe: true,
-    desc: 'Upload file to Telegra.ph, and get the link',
-    type: 'media',
-  }, async (message, match) => {
-    if (!message.quoted) {
-      await message.reply('Please send a media file to upload.');
-      return;
-    }
-
-    const filePath = path.resolve(__dirname, `upload_${Date.now()}`);
-    const buffer = await message.downloadMediaMessage();
-    fs.writeFileSync(filePath, buffer);
-
-    try {
-      const result = await TelegraPh(filePath);
-      await message.reply(`${result}`);
-    } catch (error) {
-      console.error('Error uploading file:', error);
-      await message.reply('There was an error uploading the file.');
-    } finally {
-      fs.unlinkSync(filePath);
-    }
-  });
-
-
-  Index({
     pattern: 'suggestion',
     fromMe: false,
     desc: 'Send your support, complaint, or suggestion to the bot owner',
