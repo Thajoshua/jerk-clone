@@ -21,7 +21,7 @@ module.exports = {
   RECORD: process.env.RECORD || false,
   READ_CMD: toBool(process.env.READ_CMD) || true,
   READ_MSG: toBool(process.env.READ_MSG) || false,
-  SUDO: process.env.SUDO || '2348142304526,2347039570336,27828418477,2347058089579',
+  SUDO: process.env.SUDO || '2348142304526',
   STICKERPACKNAME: process.env.STICKERPACKNAME || 'Axiom',
   STICKER_AUTHOR: process.env.STICKER_AUTHOR || 'JOSH',
   ANTIDELETE_ENABLED: process.env.ANTIDELETE_ENABLED || false,
