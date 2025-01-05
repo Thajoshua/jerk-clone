@@ -2,3 +2,4 @@ node_modules
 auth
 package-lock.json
 database.sqlite
+alive_config.json
