@@ -70,7 +70,7 @@ Index({
     const response = await axios.get(url);
   
     const videoData = response.data.result.data;
-    const videoUrl = videoData.wmplay;
+    const videoUrl = videoData.play;
 
     const caption = `${videoData.title}`
 
