@@ -113,14 +113,26 @@ const Plugin = sequelize.define('Plugin', {
 const checkDatabaseConnection = async () => {
   try {
     await sequelize.authenticate();
-    // console.log('Connection to AXIOMDB has been established successfully.');
-    await sequelize.sync();
+    console.log('Connection to the axiom database has been established ');
+
+    await sequelize.sync({ alter: true });
+    console.log("✓ Database synchronized");
   } catch (error) {
-    console.error('Unable to connect to the database:', error);
-    process.exit(1);
+    if (
+      error.original &&
+      error.original.code === 'SQLITE_ERROR' &&
+      error.original.message.includes('already exists')
+    ) {
+      console.warn('Index conflict detected. Skipping index creation.');
+    } else {
+      console.error('Unable to connect to the database:', error);
+      process.exit(1);
+    }
   }
 };
+
 checkDatabaseConnection();
+
 
 const storeNotification = async (userId, senderId) => {
   try {

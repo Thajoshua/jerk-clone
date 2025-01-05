@@ -1,15 +1,13 @@
   const { exec } = require('child_process');
   const { Index, mode } = require('../lib/');
-  const { TelegraPh, updateConfig } = require('../lib/utils');
+  const { updateConfig } = require('../lib/utils');
   const fs = require('fs');
   const path = require('path');
   const os = require('os');
   const axios = require('axios');
   const { numToJid } = require('../lib/index');
   const dotenv = require('dotenv');
-  const { DataTypes } = require('sequelize');
-  const { sequelize, AliveSettings } = require('../database/database');
-
+  const moment = require('moment');
   const play = require('play-dl');
 
 
@@ -581,7 +579,6 @@
         return await message.reply('Unsupported message type for forwarding');
       }
 
-      // Forward to all JIDs
       let successCount = 0;
       let failedJids = [];
 
@@ -595,7 +592,6 @@
         }
       }
 
-      // Send status report
       let statusMessage = `Forward Status:\n✅ Successfully sent to ${successCount}/${jids.length} recipients`;
       if (failedJids.length > 0) {
         statusMessage += `\n❌ Failed to send to:\n${failedJids.join('\n')}`;
@@ -634,6 +630,7 @@
 
   let gis = require("g-i-s");
 const { MODE } = require('../config');
+const { AutoReply, AutoReplyCooldown } = require('../database/Reply');
 
   const sendfromurl = async (message, url) => {
     let buff = await axios.get(url, { responseType: 'arraybuffer' });
@@ -932,146 +929,6 @@ const { MODE } = require('../config');
   });
 
 
-const autoResponders = new Map();
-const responseCounts = new Map();
-const cooldowns = new Map();
-
-Index({
-    pattern: 'autoreply',
-    fromMe: true,
-    desc: 'Configure auto response settings',
-    type: 'user'
-}, async (message, match) => {
-    const args = message.text.split(' ')[1]?.toLowerCase();
-    const input = message.text.split(' ').slice(2).join(' ');
-
-    if (!args) {
-        return await message.reply(
-            '*🤖 Auto Responder Commands*\n\n' +
-            '• .autoreply add <trigger>::<response>\n' +
-            '• .autoreply remove <trigger>\n' +
-            '• .autoreply list\n' +
-            '• .autoreply on/off\n' +
-            '• .autoreply limit <number>\n' +
-            '• .autoreply reset\n' +
-            '• .autoreply stats'
-        );
-    }
-
-    switch (args) {
-        case 'add':
-            if (!input || !input.includes('::')) {
-                return await message.reply('Format: .autoreply add trigger::response');
-            }
-            const [trigger, response] = input.split('::').map(x => x.trim());
-            if (!trigger || !response) {
-                return await message.reply('Invalid format! Use trigger::response');
-            }
-
-            autoResponders.set(trigger.toLowerCase(), {
-                response,
-                enabled: true,
-                limit: 50,
-                cooldown: 10,
-                pattern: trigger.includes('*'),
-                timestamp: Date.now()
-            });
-            await message.reply(`✅ Auto response added for: ${trigger}`);
-            break;
-
-        case 'remove':
-            if (!input) return await message.reply('Specify trigger to remove');
-            if (autoResponders.delete(input.toLowerCase())) {
-                await message.reply(`✅ Removed auto response for: ${input}`);
-            } else {
-                await message.reply('❌ No such auto response exists');
-            }
-            break;
-
-        case 'list':
-            const responses = [...autoResponders.entries()]
-                .map(([t, v]) => `• ${t} → ${v.response} (${v.enabled ? 'ON' : 'OFF'})`)
-                .join('\n');
-            await message.reply(responses || 'No auto responses configured');
-            break;
-
-        case 'on':
-        case 'off':
-            if (!input) {
-                autoResponders.forEach(v => v.enabled = args === 'on');
-                await message.reply(`✅ All auto responses turned ${args.toUpperCase()}`);
-            } else {
-                const responder = autoResponders.get(input.toLowerCase());
-                if (responder) {
-                    responder.enabled = args === 'on';
-                    await message.reply(`✅ Auto response for "${input}" turned ${args.toUpperCase()}`);
-                } else {
-                    await message.reply('❌ No such auto response exists');
-                }
-            }
-            break;
-
-        case 'limit':
-            if (!input || isNaN(input)) {
-                return await message.reply('Specify valid number for limit');
-            }
-            const limit = parseInt(input);
-            autoResponders.forEach(v => v.limit = limit);
-            await message.reply(`✅ Response limit set to ${limit}`);
-            break;
-
-        case 'reset':
-            responseCounts.clear();
-            cooldowns.clear();
-            await message.reply('✅ Response counters reset');
-            break;
-
-        case 'stats':
-            const stats = [...autoResponders.entries()]
-                .map(([t, v]) => {
-                    const count = responseCounts.get(t) || 0;
-                    return `• ${t}: ${count}/${v.limit} responses`;
-                })
-                .join('\n');
-            await message.reply(stats || 'No stats available');
-            break;
-    }
-});
-
-Index({
-    on: 'text',
-    fromMe: false,
-    dontAddCommandList: true
-}, async (message) => {
-    if (!message.text) return;
-    const text = message.text.toLowerCase();
-
-    for (const [trigger, config] of autoResponders.entries()) {
-        if (!config.enabled) continue;
-
-        const matches = config.pattern
-            ? new RegExp(trigger.replace(/\*/g, '.*')).test(text)
-            : text.includes(trigger);
-
-        if (!matches) continue;
-
-        const now = Date.now();
-        const cooldownKey = `${trigger}-${message.sender}`;
-        const lastUsed = cooldowns.get(cooldownKey) || 0;
-        if (now - lastUsed < config.cooldown * 1000) continue;
-
-        const count = responseCounts.get(trigger) || 0;
-        if (count >= config.limit) continue;
-
-        cooldowns.set(cooldownKey, now);
-        responseCounts.set(trigger, count + 1);
-
-        await message.reply(config.response);
-        break;
-    }
-});
-
-
 let alwaysOnline = process.env.ONLINE === 'true';
 
 Index({
@@ -1308,6 +1165,190 @@ Index({
   }
 });
 
+
+Index({
+  pattern: 'autoreply',
+  fromMe: true,
+  desc: 'Advanced auto reply system with cooldown',
+  type: 'chat'
+}, async (message) => {
+  const input = message.getUserInput()?.trim();
+  
+  if (!input) {
+      return await message.reply(`*Advanced Auto Reply Commands*
+
+*Management*
+• add <trigger> | <response> | <cooldown_ms>
+• remove <trigger>
+• list
+• clear
+
+*Settings*
+• enable <trigger>
+• disable <trigger>
+• cooldown <trigger> <milliseconds>
+• stats
+
+Example: 
+autoreply add hi | Hello there! | 5000`);
+  }
+
+  const [command, ...args] = input.split(' ');
+
+  try {
+      switch (command.toLowerCase()) {
+          case 'add': {
+              const match = args.join(' ').split('|');
+              if (match.length < 2) {
+                  return await message.reply('Format: autoreply add trigger | response | cooldown_ms(optional)');
+              }
+
+              const trigger = match[0].trim().toLowerCase();
+              const response = match[1].trim();
+              const cooldown = match[2] ? parseInt(match[2].trim()) : 10000;
+
+              if (isNaN(cooldown) || cooldown < 0) {
+                  return await message.reply('Invalid cooldown time');
+              }
+
+              const [reply, created] = await AutoReply.findOrCreate({
+                  where: { trigger },
+                  defaults: {
+                      response,
+                      cooldown,
+                      addedBy: message.sender
+                  }
+              });
+
+              if (!created) {
+                  return await message.reply(`Trigger "${trigger}" already exists`);
+              }
+
+              await message.reply(`Auto reply added:
+-Trigger: ${trigger}
+-Response: ${response}
+-Cooldown: ${cooldown}ms`);
+              break;
+          }
+
+          case 'remove': {
+            const trigger = args.join(' ').toLowerCase();
+
+            const autoReply = await AutoReply.findOne({ where: { trigger } });
+            if (!autoReply) {
+                return await message.reply(`_No auto reply found for: ${trigger}_`);
+            }
+        
+            await AutoReplyCooldown.destroy({ where: { replyId: autoReply.id } });
+        
+            const deleted = await AutoReply.destroy({ where: { id: autoReply.id } });
+            if (deleted) {
+                await message.reply(`_Removed auto reply for: ${trigger}_`);
+            } else {
+                await message.reply(`_Failed to remove auto reply for: ${trigger}_`);
+            }
+            break;
+        }
+        
+
+          case 'list': {
+              const replies = await AutoReply.findAll();
+              
+              if (replies.length === 0) {
+                  return await message.reply('No auto replies configured.');
+              }
+              
+              let list = '*Configured Auto Replies*\n\n';
+              for (const reply of replies) {
+                  list += `*Trigger:* ${reply.trigger}\n`;
+                  list += `*Response:* ${reply.response}\n`;
+                  list += `*Cooldown:* ${reply.cooldown}ms\n`;
+                  list += `*Status:* ${reply.isEnabled ? 'Enabled' : 'Disabled'}\n`;
+                  list += `*Uses:* ${reply.uses}\n`;
+                  list += `*Added by:* ${reply.addedBy}\n\n`;
+              }
+              await message.reply(list);
+              break;
+          }
+
+          case 'enable':
+          case 'disable': {
+              const trigger = args.join(' ').toLowerCase();
+              const isEnabled = command.toLowerCase() === 'enable';
+              
+              const [updated] = await AutoReply.update(
+                  { isEnabled },
+                  { where: { trigger } }
+              );
+
+              if (updated) {
+                  await message.reply(`Auto reply "${trigger}" ${isEnabled ? 'enabled' : 'disabled'}`);
+              } else {
+                  await message.reply(`No auto reply found for: ${trigger}`);
+              }
+              break;
+          }
+
+          case 'cooldown': {
+              const trigger = args[0]?.toLowerCase();
+              const newCooldown = parseInt(args[1]);
+
+              if (!trigger || isNaN(newCooldown) || newCooldown < 0) {
+                  return await message.reply('Invalid format. Use: autoreply cooldown <trigger> <milliseconds>');
+              }
+
+              const [updated] = await AutoReply.update(
+                  { cooldown: newCooldown },
+                  { where: { trigger } }
+              );
+
+              if (updated) {
+                  await message.reply(`Cooldown for "${trigger}" set to ${newCooldown}ms`);
+              } else {
+                  await message.reply(`No auto reply found for: ${trigger}`);
+              }
+              break;
+          }
+
+          case 'stats': {
+              const replies = await AutoReply.findAll({
+                  order: [['uses', 'DESC']]
+              });
+
+              if (replies.length === 0) {
+                  return await message.reply('No auto replies to show stats');
+              }
+
+              let stats = '*Auto Reply Statistics*\n\n';
+              for (const reply of replies) {
+                  stats += `*Trigger:* ${reply.trigger}\n`;
+                  stats += `*Uses:* ${reply.uses}\n`;
+                  if (reply.lastUsed) {
+                      stats += `*Last used:* ${moment(reply.lastUsed).fromNow()}\n`;
+                  }
+                  stats += `*Status:* ${reply.isEnabled ? 'Enabled' : 'Disabled'}\n\n`;
+              }
+              await message.reply(stats);
+              break;
+          }
+
+          case 'clear': {
+              await AutoReply.destroy({ where: {} });
+              await AutoReplyCooldown.destroy({ where: {} });
+              await message.reply('All auto replies cleared');
+              break;
+          }
+
+          default:
+              await message.reply('Invalid command. Use "autoreply" to see available commands.');
+      }
+  } catch (error) {
+      console.error('Auto reply error:', error);
+      await message.reply('An error occurred while processing the command');
+  }
+});
+
+
   module.exports = {
-    handleIncomingCall
+    handleIncomingCall,
   };

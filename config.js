@@ -5,7 +5,7 @@ if (existsSync(configPath)) require('dotenv').config({ path: configPath })
 
 const toBool = (x) => x == 'true';
 module.exports = {
-  HANDLERS: (process.env.HANDLERS || '^[/]').trim(),
+  HANDLERS: (process.env.HANDLERS || '^[.]').trim(),
   MODE: (process.env.MODE || 'private').toLowerCase(),
   VPS: toBool(process.env.VPS) || false,
   ERROR_MSG: toBool(process.env.ERROR_MSG) || true,
