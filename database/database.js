@@ -11,8 +11,13 @@ const sequelize = new Sequelize({
   dialect: 'sqlite',
   storage: path.join(dbDirectory, 'database.sqlite'),
   logging: false,
+  define: {
+    freezeTableName: true,
+    timestamps: true
+  }
 });
 
+// Session Management
 const UserSession = sequelize.define('UserSession', {
   jid: {
     type: DataTypes.STRING,
@@ -21,9 +26,59 @@ const UserSession = sequelize.define('UserSession', {
   sessionData: {
     type: DataTypes.JSON,
     allowNull: false,
-  },
+  }
 });
 
+// Auto Reply System
+const AutoReply = sequelize.define('AutoReply', {
+  trigger: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  response: {
+    type: DataTypes.TEXT,
+    allowNull: false
+  },
+  isEnabled: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  },
+  uses: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  cooldown: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0
+  },
+  lastUsed: {
+    type: DataTypes.DATE
+  }
+});
+
+const AutoReplyCooldown = sequelize.define('AutoReplyCooldown', {
+  userId: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  replyId: {
+    type: DataTypes.INTEGER,
+    allowNull: false
+  },
+  expiresAt: {
+    type: DataTypes.DATE,
+    allowNull: false
+  }
+}, {
+  indexes: [
+    {
+      fields: ['userId', 'replyId'],
+      unique: true
+    }
+  ]
+});
+
+// Notification System
 const Notification = sequelize.define('Notification', {
   userId: {
     type: DataTypes.STRING,
@@ -40,7 +95,7 @@ const Notification = sequelize.define('Notification', {
   timestamp: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW,
-  },
+  }
 }, {
   indexes: [
     {
@@ -50,6 +105,7 @@ const Notification = sequelize.define('Notification', {
   ]
 });
 
+// Group Event Management
 const Event = sequelize.define('Event', {
   id: {
     type: DataTypes.STRING,
@@ -76,6 +132,7 @@ const Event = sequelize.define('Event', {
   }
 });
 
+// Welcome Message Settings
 const WelcomeSetting = sequelize.define('WelcomeSetting', {
   groupId: {
     type: DataTypes.STRING,
@@ -92,6 +149,7 @@ const WelcomeSetting = sequelize.define('WelcomeSetting', {
   }
 });
 
+// Plugin Management
 const Plugin = sequelize.define('Plugin', {
   name: {
     type: DataTypes.STRING,
@@ -106,41 +164,57 @@ const Plugin = sequelize.define('Plugin', {
     type: DataTypes.STRING,
     allowNull: false
   }
-}, {
-  timestamps: true
 });
 
 const checkDatabaseConnection = async () => {
   try {
     await sequelize.authenticate();
-    console.log('Connection to the axiom database has been established ');
-
-    await sequelize.sync({ alter: true });
+    console.log('Connection to the axiom database has been established');
+    await sequelize.sync();
     console.log("✓ Database synchronized");
   } catch (error) {
-    if (
-      error.original &&
-      error.original.code === 'SQLITE_ERROR' &&
-      error.original.message.includes('already exists')
-    ) {
-      console.warn('Index conflict detected. Skipping index creation.');
-    } else {
-      console.error('Unable to connect to the database:', error);
-      process.exit(1);
-    }
+    console.error('Unable to connect to the database:', error);
+    process.exit(1);
   }
 };
 
-checkDatabaseConnection();
+const saveUserSession = async (jid, sessionData) => {
+  if (!jid || !sessionData) {
+    console.error("Invalid session data or JID");
+    return false;
+  }
 
+  try {
+    await UserSession.upsert({
+      jid,
+      sessionData: JSON.parse(JSON.stringify(sessionData))
+    });
+    return true;
+  } catch (error) {
+    console.error("Error saving user session:", error);
+    return false;
+  }
+};
+
+const getUserSession = async (jid) => {
+  try {
+    const session = await UserSession.findByPk(jid);
+    return session ? session.sessionData : null;
+  } catch (error) {
+    console.error("Error retrieving user session:", error);
+    return null;
+  }
+};
 
 const storeNotification = async (userId, senderId) => {
   try {
-    const notification = await Notification.findOne({ where: { userId, senderId } });
-    if (notification) {
+    const [notification] = await Notification.findOrCreate({
+      where: { userId, senderId },
+      defaults: { messageCount: 1 }
+    });
+    
+    if (notification.messageCount > 1) {
       await notification.increment('messageCount');
-    } else {
-      await Notification.create({ userId, senderId });
     }
   } catch (error) {
     console.error('Error storing notification:', error);
@@ -149,8 +223,7 @@ const storeNotification = async (userId, senderId) => {
 
 const getNotifications = async (userId) => {
   try {
-    const notifications = await Notification.findAll({ where: { userId } });
-    return notifications;
+    return await Notification.findAll({ where: { userId } });
   } catch (error) {
     console.error('Error retrieving notifications:', error);
     return [];
@@ -181,7 +254,7 @@ const savePlugin = async (pluginName, code) => {
     await fs.promises.writeFile(pluginPath, code, 'utf8');
     await Plugin.upsert({
       name: pluginName,
-      code: code,
+      code,
       path: pluginPath
     });
     return pluginPath;
@@ -210,4 +283,23 @@ const deletePlugin = async (pluginName) => {
   }
 };
 
-module.exports = { sequelize, UserSession, Notification, checkDatabaseConnection, storeNotification, WelcomeSetting, getNotifications, clearNotifications, Plugin, savePlugin, getInstalledPlugins, deletePlugin, PLUGINS_FOLDER,Event };
+module.exports = {
+  sequelize,
+  UserSession,
+  AutoReply,
+  AutoReplyCooldown,
+  Notification,
+  Event,
+  WelcomeSetting,
+  Plugin,
+  checkDatabaseConnection,
+  saveUserSession,
+  getUserSession,
+  storeNotification,
+  getNotifications,
+  clearNotifications,
+  savePlugin,
+  getInstalledPlugins,
+  deletePlugin,
+  PLUGINS_FOLDER
+};

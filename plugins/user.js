@@ -145,10 +145,10 @@
     if (!newName) return await message.reply('Please provide the new display name.');
     
     try {
-        await message.client.updateProfileName(newName);
+        await message.updateName(newName);
         await message.reply('Display name updated successfully.');
     } catch (error) {
-        await message.reply('Failed to update display name.');
+        await message.reply('Failed to update display name.'+error);
     }
   });
 
@@ -1347,7 +1347,6 @@ autoreply add hi | Hello there! | 5000`);
       await message.reply('An error occurred while processing the command');
   }
 });
-
 
   module.exports = {
     handleIncomingCall,

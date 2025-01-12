@@ -5,7 +5,7 @@ if (existsSync(configPath)) require('dotenv').config({ path: configPath })
 
 const toBool = (x) => x == 'true';
 module.exports = {
-  HANDLERS: (process.env.HANDLERS || '^[.]').trim(),
+  HANDLERS: (process.env.HANDLERS || '^[?]').trim(),
   MODE: (process.env.MODE || 'private').toLowerCase(),
   VPS: toBool(process.env.VPS) || false,
   ERROR_MSG: toBool(process.env.ERROR_MSG) || true,
@@ -17,7 +17,7 @@ module.exports = {
   WARNLIMIT: process.env.WARNLIMIT || 5,
   AUTO_STATUS: process.env.AUTO_STATUS || false,
   AUTO_REJECT_ENABLED: process.env.AUTO_REJECT_ENABLED || false,
-  SESSION_ID: process.env.SESSION_ID || "",
+  SESSION_ID: process.env.SESSION_ID || "Axiom_b4025db4f1cf3e67",
   RECORD: process.env.RECORD || false,
   READ_CMD: toBool(process.env.READ_CMD) || true,
   READ_MSG: toBool(process.env.READ_MSG) || false,

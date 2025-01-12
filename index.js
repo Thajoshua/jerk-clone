@@ -47,11 +47,10 @@ function cleanupOldMessages() {
 
 setInterval(cleanupOldMessages, 30 * 60 * 1000);
 
-const processedSessionId = config.SESSION_ID.replace(/^Axiom_/, "");
 
 if (!fs.existsSync("./auth/creds.json")) {
-  MakeSession(processedSessionId, "./auth/creds.json").then(
-  console.log("Session Created")
+  MakeSession(config.SESSION_ID, "./auth/creds.json").then(() =>
+    console.log("version : " + require("./package.json").version)
   );
 }
 
@@ -190,9 +189,7 @@ async function initializeDatabaseAndPlugins() {
       }
     });
 
-    client.ev.on("creds.update", async (creds) => {
-      await saveUserSession(client.user.id, creds);
-    });
+    client.ev.on("creds.update", saveCreds)
 
     client.ev.on("group-participants.update", async (notification) => {
       if (notification.action === "add") {
@@ -252,6 +249,7 @@ async function initializeDatabaseAndPlugins() {
         console.error("Error in promotion watcher:", error);
       }
     });
+    
 
     client.ev.on("messages.upsert", async (upsert) => {
       if (upsert.type !== "notify") return;
@@ -260,62 +258,6 @@ async function initializeDatabaseAndPlugins() {
         if (!msg.message) continue;
         const message = new Message(client, msg);
         const messageType = getContentType(msg.message);
-
-        // try {
-        //   let messageText = "";
-        //   if (messageType === "conversation") {
-        //     messageText = msg.message.conversation;
-        //   } else if (messageType === "extendedTextMessage") {
-        //     messageText = msg.message.extendedTextMessage.text;
-        //   } else {
-        //     continue;
-        //   }
-
-        //   if (message.isGroup === true ) continue;
-        //   if (msg.key.fromMe || !msg.message?.conversation) continue;
-
-        //   messageText = messageText.toLowerCase();
-        //   const currentTime = new Date();
-
-        //   const replies = await AutoReply.findAll({
-        //     where: { isEnabled: true },
-        //   });
-
-        //   for (const reply of replies) {
-        //     if (messageText.includes(reply.trigger)) {
-        //       const cooldown = await AutoReplyCooldown.findOne({
-        //         where: {
-        //           userId: message.sender,
-        //           replyId: reply.id,
-        //           expiresAt: {
-        //             [Sequelize.Op.gt]: currentTime,
-        //           },
-        //         },
-        //       });
-
-        //       if (cooldown) {
-        //         continue;
-        //       }
-
-        //       await reply.update({
-        //         uses: reply.uses + 1,
-        //         lastUsed: currentTime,
-        //       });
-
-        //       await AutoReplyCooldown.create({
-        //         userId: message.sender,
-        //         replyId: reply.id,
-        //         expiresAt: new Date(currentTime.getTime() + reply.cooldown),
-        //       });
-
-        //       await client.readMessages([message.data.key]);
-        //       await message.reply(reply.response);
-        //       break;
-        //     }
-        //   }
-        // } catch (error) {
-        //   console.error("Error in auto reply handler:", error);
-        // }
 
         try {
           let messageText = "";
@@ -478,15 +420,12 @@ async function initializeDatabaseAndPlugins() {
           }
         }
 
-        // Handle auto react and antispam
         await handleAutoReact(message);
         await handleAntispam(message);
 
         const warns = new Map();
 
-        // Anti-badword handler
         const containsBadWord = (text) => {
-          // const config = readConfig();
           return config.ANTIBADWORD.badwords.some((word) =>
             text.toLowerCase().includes(word.toLowerCase())
           );
@@ -504,7 +443,6 @@ async function initializeDatabaseAndPlugins() {
           !message.fromMe &&
           containsBadWord(message.text)
         ) {
-          // const config = readConfig();
           switch (config.ANTIBADWORD.action) {
             case "warn":
               const warnCount = warnUser(message.sender);
@@ -520,7 +458,6 @@ async function initializeDatabaseAndPlugins() {
                 warns.delete(message.sender);
                 await message.reply(`User kicked for exceeding warn limit.`);
               }
-            // Fall through to delete the message
             case "delete":
               await message.delete();
               break;
@@ -566,7 +503,6 @@ Content: ${message.text || message.type || "No content"}`);
           await client.readMessages([message.data.key]);
         }
 
-        // Command handler
         commands.map(async (command) => {
           const messageType = {
             image: "imageMessage",

@@ -1,6 +1,4 @@
 const { Index } = require('../lib/');
-const fs = require('fs').promises;
-const path = require('path');
 
 
 let autoReactEnabled = false;

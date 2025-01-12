@@ -18,7 +18,6 @@ Index({
         return await message.reply('Please provide a URL to shorten');
     }
 
-    // Extract URL from the message
     const url = extractURL(input);
 
     if (!url) {
@@ -26,21 +25,18 @@ Index({
     }
 
     try {
-        // Validate the extracted URL
         if (!isValidURL(url)) {
             return await message.reply('Invalid URL format');
         }
         
         const result = await TinyURL(url);
         
-        // Prepare the response message
         const responseMessage = `
 *URL Shortener:*
 -Original URL: ${url}
 -Shortened URL: ${result.link}
         `.trim();
         
-        // Send the response
         await message.reply(responseMessage);
     } catch (error) {
         console.error('URL Shortening Error:', error);
